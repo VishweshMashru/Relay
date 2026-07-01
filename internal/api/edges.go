@@ -140,7 +140,7 @@ func (s *Server) edgeCommands(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Release()
 
-	if _, err := conn.Exec(ctx, "LISTEN "+channelForEdge(edgeID)); err != nil {
+	if _, err := conn.Exec(ctx, "LISTEN "+relay.EdgeChannel(edgeID)); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -217,13 +217,3 @@ func ownsEdge(ctx context.Context, s *Server, projectID, edgeID string) bool {
 	return err == nil
 }
 
-func channelForEdge(edgeUUID string) string {
-	out := make([]byte, 0, len(edgeUUID)+5)
-	out = append(out, "edge_"...)
-	for i := 0; i < len(edgeUUID); i++ {
-		if edgeUUID[i] != '-' {
-			out = append(out, edgeUUID[i])
-		}
-	}
-	return string(out)
-}

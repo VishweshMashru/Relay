@@ -1,0 +1,13 @@
+# Keep the build context small so `docker build` is fast.
+.git
+.gitignore
+.env
+.env.*
+.dockerignore
+Dockerfile
+README.md
+docs/
+web/
+cameras.json
+cameras.example.json
+*.md

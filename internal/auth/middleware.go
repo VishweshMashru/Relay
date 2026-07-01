@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -11,8 +12,31 @@ import (
 )
 
 type Middleware struct {
-	Pool      *pgxpool.Pool
-	JWTSecret []byte
+	Pool       *pgxpool.Pool
+	JWTSecret  []byte
+	AdminToken []byte
+}
+
+// Admin gates a route on a shared admin token. Used for the dashboard's
+// onboarding endpoint — the Next.js dashboard is a trusted client that
+// proxies signed-in user data with this token.
+func (m *Middleware) Admin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if len(m.AdminToken) == 0 {
+			unauthorized(w, "RELAY_ADMIN_TOKEN not configured")
+			return
+		}
+		raw := extractBearer(r)
+		if raw == "" {
+			unauthorized(w, "missing bearer token")
+			return
+		}
+		if subtle.ConstantTimeCompare([]byte(raw), m.AdminToken) != 1 {
+			unauthorized(w, "invalid admin token")
+			return
+		}
+		next(w, r)
+	}
 }
 
 // APIKey resolves a Bearer "rk_live_..." to a project and attaches project_id

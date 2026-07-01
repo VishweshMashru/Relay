@@ -1,0 +1,47 @@
+# Fly.io deployment config for relay-api.
+#
+# One-time setup (after installing flyctl):
+#   fly auth login
+#   fly launch --no-deploy   # or `fly apps create relay-api` if this file exists
+#   fly secrets set \
+#     DATABASE_URL="postgresql://..." \
+#     ACCOUNT_ID="..." \
+#     API_TOKEN="..." \
+#     RELAY_JWT_SECRET="$(openssl rand -hex 32)" \
+#     RELAY_ADMIN_TOKEN="$(openssl rand -hex 32)"
+#   fly deploy
+#
+# Redeploy on push: `fly deploy` from repo root, or set up GitHub Actions with
+# fly-actions/setup-flyctl.
+
+app = "relay-api"
+primary_region = "sin"   # Singapore — closest AWS region for Neon ap-southeast-1
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  RELAY_API_ADDR = ":8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines  = "stop"    # scale to zero when idle (Fly free-tier friendly)
+  auto_start_machines = true
+  min_machines_running = 1        # keep one warm so long-poll doesn't cold-start
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 500
+    soft_limit = 400
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "15s"
+    method = "GET"
+    path = "/v1/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

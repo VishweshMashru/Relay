@@ -21,11 +21,11 @@ type Server struct {
 	mux    *http.ServeMux
 }
 
-func New(pool *pgxpool.Pool, streamClient *stream.Client, jwtSecret []byte) *Server {
+func New(pool *pgxpool.Pool, streamClient *stream.Client, jwtSecret, adminToken []byte) *Server {
 	s := &Server{
 		pool:   pool,
 		stream: streamClient,
-		mw:     &auth.Middleware{Pool: pool, JWTSecret: jwtSecret},
+		mw:     &auth.Middleware{Pool: pool, JWTSecret: jwtSecret, AdminToken: adminToken},
 		mux:    http.NewServeMux(),
 	}
 	s.routes()
@@ -57,6 +57,9 @@ func (s *Server) routes() {
 
 	// Edge-facing — require signed edge JWT
 	s.mux.HandleFunc("GET /v1/edges/commands", s.mw.EdgeToken(s.edgeCommands))
+
+	// Admin — require RELAY_ADMIN_TOKEN. Dashboard-only endpoints.
+	s.mux.HandleFunc("POST /v1/admin/onboard", s.mw.Admin(s.adminOnboard))
 
 	// Reference viewer, embedded via //go:embed. Same origin as the API,
 	// so the browser doesn't need CORS for its own calls.
