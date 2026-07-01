@@ -17,12 +17,16 @@ func main() {
 
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		log.Fatal("DATABASE_URL is required (set in .env)")
+		log.Fatal("DATABASE_URL is required")
 	}
 	accountID := os.Getenv("ACCOUNT_ID")
 	apiToken := os.Getenv("API_TOKEN")
 	if accountID == "" || apiToken == "" {
-		log.Fatal("ACCOUNT_ID and API_TOKEN are required (set in .env)")
+		log.Fatal("ACCOUNT_ID and API_TOKEN are required (Cloudflare Stream)")
+	}
+	secret := []byte(os.Getenv("RELAY_JWT_SECRET"))
+	if len(secret) < 16 {
+		log.Fatal("RELAY_JWT_SECRET must be at least 16 chars (dev: `openssl rand -hex 32`)")
 	}
 
 	ctx := context.Background()
@@ -42,7 +46,7 @@ func main() {
 	if addr == "" {
 		addr = ":8080"
 	}
-	if err := api.New(pool, streamClient).ListenAndServe(addr); err != nil {
+	if err := api.New(pool, streamClient, secret).ListenAndServe(addr); err != nil {
 		log.Fatalf("relay-api: %v", err)
 	}
 }

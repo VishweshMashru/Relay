@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"relay/internal/auth"
 	"relay/internal/stream"
 	"relay/internal/webviewer"
 )
@@ -16,11 +17,17 @@ import (
 type Server struct {
 	pool   *pgxpool.Pool
 	stream *stream.Client
+	mw     *auth.Middleware
 	mux    *http.ServeMux
 }
 
-func New(pool *pgxpool.Pool, streamClient *stream.Client) *Server {
-	s := &Server{pool: pool, stream: streamClient, mux: http.NewServeMux()}
+func New(pool *pgxpool.Pool, streamClient *stream.Client, jwtSecret []byte) *Server {
+	s := &Server{
+		pool:   pool,
+		stream: streamClient,
+		mw:     &auth.Middleware{Pool: pool, JWTSecret: jwtSecret},
+		mux:    http.NewServeMux(),
+	}
 	s.routes()
 	return s
 }
@@ -33,20 +40,26 @@ func (s *Server) ListenAndServe(addr string) error {
 }
 
 func (s *Server) routes() {
+	// Public
 	s.mux.HandleFunc("GET /v1/health", s.health)
 
-	// Customer- and viewer-facing — handlers live in sessions.go
-	s.mux.HandleFunc("POST /v1/sessions", s.createSession)
+	// Viewer-facing — public for now (session UUIDs are unguessable). Signed
+	// playback URLs come in a later step.
 	s.mux.HandleFunc("GET /v1/sessions/{id}", s.getSession)
 	s.mux.HandleFunc("POST /v1/sessions/{id}/heartbeat", s.heartbeat)
 	s.mux.HandleFunc("DELETE /v1/sessions/{id}", s.deleteSession)
 
-	// Edge-facing — handlers live in edges.go
-	s.mux.HandleFunc("POST /v1/edges", s.registerEdge)
-	s.mux.HandleFunc("GET /v1/edges/commands", s.edgeCommands)
+	// Customer-facing — require API key
+	s.mux.HandleFunc("POST /v1/sessions", s.mw.APIKey(s.createSession))
+	s.mux.HandleFunc("POST /v1/edges", s.mw.APIKey(s.provisionEdge))
+	s.mux.HandleFunc("POST /v1/edges/{edge_id}/cameras", s.mw.APIKey(s.createCamera))
+	s.mux.HandleFunc("GET /v1/edges/{edge_id}/cameras", s.mw.APIKey(s.listCameras))
 
-	// Reference viewer, embedded via //go:embed. Same origin as the API, so
-	// the browser doesn't need CORS for its own calls.
+	// Edge-facing — require signed edge JWT
+	s.mux.HandleFunc("GET /v1/edges/commands", s.mw.EdgeToken(s.edgeCommands))
+
+	// Reference viewer, embedded via //go:embed. Same origin as the API,
+	// so the browser doesn't need CORS for its own calls.
 	s.mux.Handle("GET /viewer/", http.StripPrefix("/viewer", http.FileServer(http.FS(webviewer.FS()))))
 }
 
@@ -60,8 +73,6 @@ func writeJSON(w http.ResponseWriter, code int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// withCORS is a wildcard-open CORS wrapper. Fine for dev; tighten before
-// exposing publicly.
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")

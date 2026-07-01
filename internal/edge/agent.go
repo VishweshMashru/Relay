@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"time"
 
 	"relay/internal/relay"
@@ -18,8 +17,7 @@ import (
 
 type Agent struct {
 	APIURL     string
-	EdgeToken  string
-	EdgeID     string // TEMP: sent as query param until auth
+	EdgeToken  string // JWT signed by relay-api
 	ConfigPath string
 
 	client *http.Client
@@ -31,8 +29,8 @@ func (a *Agent) Run(ctx context.Context) error {
 	if a.APIURL == "" {
 		return errors.New("APIURL is required")
 	}
-	if a.EdgeID == "" {
-		return errors.New("EdgeID is required (until auth is wired)")
+	if a.EdgeToken == "" {
+		return errors.New("EdgeToken (RELAY_EDGE_TOKEN) is required — provision with `relay-admin edge create`")
 	}
 
 	cfg, err := LoadConfig(a.ConfigPath)
@@ -46,7 +44,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	defer a.ffmpeg.StopAll()
 
-	log.Printf("relay-edge starting api=%s edge=%s cameras=%d", a.APIURL, a.EdgeID, len(cfg.Cameras))
+	log.Printf("relay-edge starting api=%s cameras=%d", a.APIURL, len(cfg.Cameras))
 
 	backoff := time.Second
 	for {
@@ -75,14 +73,11 @@ func (a *Agent) Run(ctx context.Context) error {
 }
 
 func (a *Agent) pollCommands(ctx context.Context) ([]relay.Command, error) {
-	u := a.APIURL + "/v1/edges/commands?edge_id=" + url.QueryEscape(a.EdgeID)
-	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", a.APIURL+"/v1/edges/commands", nil)
 	if err != nil {
 		return nil, err
 	}
-	if a.EdgeToken != "" {
-		req.Header.Set("Authorization", "Bearer "+a.EdgeToken)
-	}
+	req.Header.Set("Authorization", "Bearer "+a.EdgeToken)
 	resp, err := a.client.Do(req)
 	if err != nil {
 		return nil, err

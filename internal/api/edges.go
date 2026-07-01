@@ -9,27 +9,130 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"relay/internal/auth"
 	"relay/internal/relay"
 )
 
 const longPollTimeout = 25 * time.Second
 
-// edgeCommands is the heart of the control plane. Edge opens a GET; we either
-// return immediately with any pending commands, or hang until a new command
-// lands (signalled via LISTEN/NOTIFY) — whichever comes first. After 25s with
-// nothing, we return an empty list so the edge re-opens the long-poll.
+// provisionEdge is customer-facing. Given a project (via API key), creates a
+// new edge row and returns its ID and a freshly-signed JWT. Customer's app
+// should surface both to the end-user during ForemanConnect-style pairing.
+func (s *Server) provisionEdge(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := auth.ProjectFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no project in context"})
+		return
+	}
+	var req struct {
+		Name     string `json:"name"`
+		Hostname string `json:"hostname"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	if req.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+	var edgeID string
+	if err := s.pool.QueryRow(r.Context(), `
+		INSERT INTO edges(project_id, name, hostname, token_hash) VALUES ($1, $2, NULLIF($3, ''), 'jwt')
+		RETURNING id::text
+	`, projectID, req.Name, req.Hostname).Scan(&edgeID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	tok, err := auth.SignEdgeToken(s.mw.JWTSecret, projectID, edgeID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"edge_id":    edgeID,
+		"edge_token": tok,
+	})
+}
+
+// createCamera is customer-facing. Adds a camera to an edge the caller owns.
+// RTSP URLs are NOT sent here — only the camera's cloud identity + name.
+func (s *Server) createCamera(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := auth.ProjectFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no project in context"})
+		return
+	}
+	edgeID := r.PathValue("edge_id")
+	if !ownsEdge(r.Context(), s, projectID, edgeID) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "edge not found"})
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	if req.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+	var cameraID string
+	if err := s.pool.QueryRow(r.Context(), `
+		INSERT INTO cameras(edge_id, name) VALUES ($1, $2) RETURNING id::text
+	`, edgeID, req.Name).Scan(&cameraID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"camera_id": cameraID,
+		"edge_id":   edgeID,
+		"name":      req.Name,
+	})
+}
+
+func (s *Server) listCameras(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := auth.ProjectFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no project in context"})
+		return
+	}
+	edgeID := r.PathValue("edge_id")
+	if !ownsEdge(r.Context(), s, projectID, edgeID) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "edge not found"})
+		return
+	}
+	rows, err := s.pool.Query(r.Context(),
+		`SELECT id::text, name, created_at FROM cameras WHERE edge_id = $1 ORDER BY created_at`, edgeID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+	out := []map[string]any{}
+	for rows.Next() {
+		var id, name string
+		var created time.Time
+		_ = rows.Scan(&id, &name, &created)
+		out = append(out, map[string]any{"id": id, "name": name, "created_at": created})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"cameras": out})
+}
+
+// edgeCommands is the long-poll heart of the control plane. Auth middleware
+// puts edge_id in the request context — no more query-param edge IDs.
 func (s *Server) edgeCommands(w http.ResponseWriter, r *http.Request) {
-	// TODO: derive edge_id from auth header. Query param for now.
-	edgeID := r.URL.Query().Get("edge_id")
-	if edgeID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "edge_id is required (temp; will come from auth)"})
+	edgeID, ok := auth.EdgeFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no edge in context"})
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), longPollTimeout+5*time.Second)
 	defer cancel()
 
-	// Pin one connection for the whole call so LISTEN persists.
 	conn, err := s.pool.Acquire(ctx)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -42,7 +145,6 @@ func (s *Server) edgeCommands(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// First check: any already-pending commands?
 	cmds, err := claimCommands(ctx, conn.Conn(), edgeID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -53,7 +155,6 @@ func (s *Server) edgeCommands(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Otherwise wait for a notification or timeout.
 	waitCtx, waitCancel := context.WithTimeout(ctx, longPollTimeout)
 	defer waitCancel()
 	if _, err := conn.Conn().WaitForNotification(waitCtx); err != nil {
@@ -73,8 +174,6 @@ func (s *Server) edgeCommands(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"commands": cmds})
 }
 
-// claimCommands atomically marks pending commands as delivered and returns
-// them. FOR UPDATE SKIP LOCKED makes this safe against concurrent long-polls.
 func claimCommands(ctx context.Context, conn *pgx.Conn, edgeID string) ([]relay.Command, error) {
 	rows, err := conn.Query(ctx, `
 		UPDATE commands
@@ -108,12 +207,16 @@ func claimCommands(ctx context.Context, conn *pgx.Conn, edgeID string) ([]relay.
 	return out, rows.Err()
 }
 
-func (s *Server) registerEdge(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusNotImplemented, map[string]string{"todo": "auth + provision edge token"})
+// ownsEdge verifies the given project owns the edge. Central to multi-tenant
+// isolation — any handler that names an edge_id in the URL must check this.
+func ownsEdge(ctx context.Context, s *Server, projectID, edgeID string) bool {
+	var one int
+	err := s.pool.QueryRow(ctx,
+		`SELECT 1 FROM edges WHERE id = $1 AND project_id = $2`, edgeID, projectID,
+	).Scan(&one)
+	return err == nil
 }
 
-// channelForEdge maps an edge UUID to a Postgres NOTIFY channel name. Strips
-// hyphens so the channel can be used as an unquoted identifier.
 func channelForEdge(edgeUUID string) string {
 	out := make([]byte, 0, len(edgeUUID)+5)
 	out = append(out, "edge_"...)
