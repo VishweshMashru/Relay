@@ -133,6 +133,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=/etc/relay-edge/config
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 ExecStart=/usr/local/bin/relay-edge
 Restart=always
 RestartSec=5
@@ -165,6 +166,9 @@ elif [ "$OS" = "darwin" ]; then
     <key>RELAY_API_URL</key><string>${RELAY_API_URL}</string>
     <key>RELAY_EDGE_TOKEN</key><string>${RELAY_EDGE_TOKEN}</string>
     <key>RELAY_CAMERAS_FILE</key><string>${CONFIG_DIR}/cameras.json</string>
+    <!-- launchd's default PATH excludes /usr/local/bin and /opt/homebrew/bin;
+         ffmpeg lives in one of those depending on architecture / Homebrew. -->
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
