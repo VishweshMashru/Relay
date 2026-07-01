@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>relay viewer</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #000; color: #eee; font-family: system-ui, sans-serif; height: 100%; }
+      .wrap { display: grid; place-items: center; height: 100vh; }
+      video { max-width: 100%; max-height: 100vh; background: #000; }
+      .status { position: fixed; top: 12px; left: 12px; padding: 6px 10px; background: rgba(0,0,0,0.6); border-radius: 6px; font-size: 12px; }
+      .err { color: #ff8080; padding: 2rem; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <video id="v" controls autoplay muted playsinline></video>
+      <div id="err" class="err" style="display:none"></div>
+    </div>
+    <div id="status" class="status">connecting…</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const sessionID = params.get("session");
+      const apiBase   = params.get("api") || location.origin;
+      const video     = document.getElementById("v");
+      const status    = document.getElementById("status");
+      const errBox    = document.getElementById("err");
+
+      function fail(msg) {
+        video.style.display = "none";
+        status.style.display = "none";
+        errBox.style.display = "";
+        errBox.textContent = msg;
+      }
+
+      async function load() {
+        if (!sessionID) return fail("Missing ?session=<id> in URL.");
+        const r = await fetch(`${apiBase}/v1/sessions/${sessionID}`);
+        if (!r.ok) return fail(`Session lookup failed: ${r.status}`);
+        const data = await r.json();
+        const url = data.viewer_url;
+        if (!url) return fail("Session has no viewer URL yet.");
+        status.textContent = "loading stream…";
+
+        if (Hls.isSupported()) {
+          // Cloudflare Stream Live can take 30–60s after RTMPS ingest starts
+          // to publish the first HLS manifest. Retry aggressively so the
+          // viewer doesn't give up before it's ready.
+          const hls = new Hls({
+            liveDurationInfinity: true,
+            manifestLoadingMaxRetry: 12,
+            manifestLoadingRetryDelay: 3000,
+            manifestLoadingMaxRetryTimeout: 60000,
+            levelLoadingMaxRetry: 8,
+            fragLoadingMaxRetry: 8,
+          });
+          hls.on(Hls.Events.MANIFEST_PARSED, () => { status.textContent = "playing"; });
+          hls.on(Hls.Events.ERROR, (_, data) => {
+            if (data.details === "manifestLoadError") {
+              status.textContent = "waiting for Cloudflare to build the stream…";
+              return; // hls.js will keep retrying per config
+            }
+            if (data.fatal) status.textContent = `hls error: ${data.type}/${data.details}`;
+          });
+          hls.loadSource(url);
+          hls.attachMedia(video);
+        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = url; // Safari native HLS
+          video.addEventListener("playing", () => status.textContent = "playing");
+        } else {
+          fail("This browser doesn't support HLS.");
+        }
+      }
+
+      // Heartbeat every 10s so the session doesn't expire while we watch.
+      setInterval(() => {
+        fetch(`${apiBase}/v1/sessions/${sessionID}/heartbeat`, { method: "POST" }).catch(() => {});
+      }, 10000);
+
+      // Best-effort stop on close.
+      window.addEventListener("pagehide", () => {
+        fetch(`${apiBase}/v1/sessions/${sessionID}`, { method: "DELETE", keepalive: true }).catch(() => {});
+      });
+
+      load().catch(err => fail(String(err)));
+    </script>
+  </body>
+</html>

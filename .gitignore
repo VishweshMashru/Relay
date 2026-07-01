@@ -1,0 +1,19 @@
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+go.work
+go.work.sum
+
+# Secrets — never commit
+.env
+.envrc
+
+# Edge-side runtime config (may contain RTSP passwords)
+cameras.json
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/

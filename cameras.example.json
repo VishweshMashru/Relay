@@ -1,0 +1,5 @@
+{
+  "cameras": {
+    "camera-uuid-goes-here": "rtsp://user:password@host:554/path"
+  }
+}
