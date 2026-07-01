@@ -107,10 +107,26 @@ func (c *Client) Provision(ctx context.Context, name string) (*LiveInput, error)
 	}, nil
 }
 
+// Destroy deletes a Live Input AND any recording videos associated with it.
+//
+// CF Stream Live with recording.mode=automatic (which we require, otherwise
+// no HLS manifest gets built) creates a persistent video object per session.
+// Deleting the Live Input alone does NOT delete those videos — they linger
+// as VOD assets, count against your storage quota, and keep the "Live"
+// indicator lit in the CF dashboard while recording is finalizing. We must
+// explicitly delete the videos too.
 func (c *Client) Destroy(ctx context.Context, uid string) error {
 	if uid == "" {
 		return nil
 	}
+	// 1. List videos attached to this live input, delete each. Best-effort:
+	//    if listing fails we still try to delete the input itself.
+	if videos, err := c.listInputVideos(ctx, uid); err == nil {
+		for _, v := range videos {
+			_ = c.deleteVideo(ctx, v)
+		}
+	}
+	// 2. Delete the live input.
 	req, err := http.NewRequestWithContext(ctx, "DELETE",
 		fmt.Sprintf("%s/accounts/%s/stream/live_inputs/%s", apiBase, c.accountID, uid), nil)
 	if err != nil {
@@ -125,6 +141,55 @@ func (c *Client) Destroy(ctx context.Context, uid string) error {
 	if resp.StatusCode >= 400 && resp.StatusCode != 404 {
 		buf, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("cf stream destroy: %d %s", resp.StatusCode, string(buf))
+	}
+	return nil
+}
+
+func (c *Client) listInputVideos(ctx context.Context, inputUID string) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		fmt.Sprintf("%s/accounts/%s/stream/live_inputs/%s/videos", apiBase, c.accountID, inputUID), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiToken)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("cf list videos: %d", resp.StatusCode)
+	}
+	var out struct {
+		Result []struct {
+			UID string `json:"uid"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	uids := make([]string, 0, len(out.Result))
+	for _, v := range out.Result {
+		uids = append(uids, v.UID)
+	}
+	return uids, nil
+}
+
+func (c *Client) deleteVideo(ctx context.Context, videoUID string) error {
+	req, err := http.NewRequestWithContext(ctx, "DELETE",
+		fmt.Sprintf("%s/accounts/%s/stream/%s", apiBase, c.accountID, videoUID), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiToken)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 && resp.StatusCode != 404 {
+		buf, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("cf delete video: %d %s", resp.StatusCode, string(buf))
 	}
 	return nil
 }
