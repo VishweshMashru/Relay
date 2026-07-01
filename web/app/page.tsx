@@ -1,11 +1,7 @@
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
-import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 
-export default async function Landing() {
-  const { userId } = await auth();
-  const signedIn = !!userId;
-
+export default function Landing() {
   return (
     <div className="flex flex-1 flex-col">
       <nav className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">
@@ -19,23 +15,27 @@ export default async function Landing() {
           >
             Showcase
           </Link>
-          {signedIn ? (
-            <>
-              <Link
-                href="/dashboard"
-                className="text-sm rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 px-3 py-1.5"
-              >
-                Dashboard
-              </Link>
-              <UserButton />
-            </>
-          ) : (
+          <Show when="signed-out">
             <SignInButton mode="modal">
               <button className="text-sm rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-900">
                 Sign in
               </button>
             </SignInButton>
-          )}
+            <SignUpButton mode="modal">
+              <button className="text-sm rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 px-3 py-1.5">
+                Sign up
+              </button>
+            </SignUpButton>
+          </Show>
+          <Show when="signed-in">
+            <Link
+              href="/dashboard"
+              className="text-sm rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 px-3 py-1.5"
+            >
+              Dashboard
+            </Link>
+            <UserButton />
+          </Show>
         </div>
       </nav>
 
@@ -55,20 +55,21 @@ export default async function Landing() {
             demand. You pay per minute streamed — nothing when idle.
           </p>
           <div className="flex gap-3 mt-2">
-            {signedIn ? (
+            <Show when="signed-out">
+              <SignUpButton mode="modal">
+                <button className="h-11 px-5 rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium">
+                  Get an API key
+                </button>
+              </SignUpButton>
+            </Show>
+            <Show when="signed-in">
               <Link
                 href="/dashboard"
                 className="h-11 px-5 rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium inline-flex items-center"
               >
                 Open dashboard
               </Link>
-            ) : (
-              <SignUpButton mode="modal">
-                <button className="h-11 px-5 rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-sm font-medium">
-                  Get an API key
-                </button>
-              </SignUpButton>
-            )}
+            </Show>
             <Link
               href="/showcase"
               className="h-11 px-5 rounded-md border border-neutral-300 dark:border-neutral-700 text-sm font-medium inline-flex items-center"
