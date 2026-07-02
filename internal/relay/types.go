@@ -53,6 +53,7 @@ type Session struct {
 	CameraID        string        `json:"camera_id,omitempty"` // empty for push-ingest sessions
 	Ingest          IngestType    `json:"ingest"`
 	Protocol        Protocol      `json:"protocol"`
+	Record          bool          `json:"record,omitempty"`
 	Status          SessionStatus `json:"status"`
 	ViewerURL       string        `json:"viewer_url,omitempty"`
 	ViewerToken     string        `json:"viewer_token,omitempty"` // returned once, at creation
@@ -69,13 +70,21 @@ const (
 	AssetReady   AssetStatus = "ready"
 )
 
-// Asset is a stored video object — an uploaded clip today, a live-session
-// recording later. URLs are presigned per-fetch and never persisted.
+type AssetSource string
+
+const (
+	AssetSourceS3         AssetSource = "s3"         // uploaded clip; storage_key is the bucket key
+	AssetSourceCloudflare AssetSource = "cloudflare" // live recording; storage_key is the CF video UID
+)
+
+// Asset is a stored video object — an uploaded clip or a harvested
+// live-session recording. URLs are signed per-fetch and never persisted.
 type Asset struct {
 	ID          string            `json:"id"`
 	CameraID    string            `json:"camera_id,omitempty"`
 	SessionID   string            `json:"session_id,omitempty"`
 	Name        string            `json:"name,omitempty"`
+	Source      AssetSource       `json:"source"`
 	ContentType string            `json:"content_type"`
 	SizeBytes   int64             `json:"size_bytes,omitempty"`
 	Status      AssetStatus       `json:"status"`
@@ -127,4 +136,9 @@ type CreateSessionRequest struct {
 	Name       string     `json:"name"`
 	Protocol   Protocol   `json:"protocol"`
 	TTLSeconds int        `json:"ttl_seconds"`
+	// Record keeps the session's recording as an asset after teardown
+	// instead of deleting it. RecordTTLSeconds sets the recording's
+	// retention; 0 = keep forever.
+	Record           bool `json:"record"`
+	RecordTTLSeconds int  `json:"record_ttl_seconds"`
 }

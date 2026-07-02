@@ -3,12 +3,14 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"relay/internal/auth"
 	"relay/internal/relay"
+	"relay/internal/vod"
 )
 
 // viewerToken gates the viewer-facing session endpoints. Two credentials
@@ -112,6 +114,10 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "protocol \"webrtc\" currently requires ingest \"push\""})
 		return
 	}
+	if req.RecordTTLSeconds < 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "record_ttl_seconds must be >= 0"})
+		return
+	}
 
 	ctx := r.Context()
 
@@ -172,11 +178,11 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 
 	var sess relay.Session
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO sessions(project_id, camera_id, ingest, status, protocol, viewer_url, stream_input_uid, started_at, expires_at)
-		VALUES ($1, NULLIF($2,'')::uuid, $3, 'pending', $4, $5, $6, $7, $8)
-		RETURNING id::text, COALESCE(camera_id::text,''), ingest, status, protocol, COALESCE(viewer_url,''), started_at, expires_at
-	`, projectID, req.CameraID, req.Ingest, req.Protocol, viewerURL, input.UID, now, expires).Scan(
-		&sess.ID, &sess.CameraID, &sess.Ingest, &sess.Status, &sess.Protocol, &sess.ViewerURL, &sess.StartedAt, &sess.ExpiresAt,
+		INSERT INTO sessions(project_id, camera_id, ingest, status, protocol, record, record_ttl_seconds, viewer_url, stream_input_uid, started_at, expires_at)
+		VALUES ($1, NULLIF($2,'')::uuid, $3, 'pending', $4, $5, NULLIF($6, 0), $7, $8, $9, $10)
+		RETURNING id::text, COALESCE(camera_id::text,''), ingest, status, protocol, record, COALESCE(viewer_url,''), started_at, expires_at
+	`, projectID, req.CameraID, req.Ingest, req.Protocol, req.Record, req.RecordTTLSeconds, viewerURL, input.UID, now, expires).Scan(
+		&sess.ID, &sess.CameraID, &sess.Ingest, &sess.Status, &sess.Protocol, &sess.Record, &sess.ViewerURL, &sess.StartedAt, &sess.ExpiresAt,
 	); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -282,12 +288,14 @@ func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 
-	var cameraID, streamInputUID string
+	var cameraID, streamInputUID, sessProjectID string
+	var record bool
+	var recordTTL *int
 	if err := tx.QueryRow(ctx, `
 		UPDATE sessions SET status = 'ended'
 		WHERE id = $1 AND status IN ('pending','live')
-		RETURNING COALESCE(camera_id::text,''), COALESCE(stream_input_uid,'')
-	`, id).Scan(&cameraID, &streamInputUID); err != nil {
+		RETURNING COALESCE(camera_id::text,''), COALESCE(stream_input_uid,''), project_id::text, record, record_ttl_seconds
+	`, id).Scan(&cameraID, &streamInputUID, &sessProjectID, &record, &recordTTL); err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not active"})
 		return
 	}
@@ -323,9 +331,22 @@ func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
 
 	if streamInputUID != "" {
 		go func() {
-			bg, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			bg, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			_ = s.stream.Destroy(bg, streamInputUID)
+			if record {
+				ttl := 0
+				if recordTTL != nil {
+					ttl = *recordTTL
+				}
+				if _, err := vod.Harvest(bg, s.pool, s.stream, vod.Session{
+					ID: id, ProjectID: sessProjectID, CameraID: cameraID,
+					InputUID: streamInputUID, TTLSeconds: ttl,
+				}); err != nil {
+					log.Printf("sessions: harvest %s: %v", id, err)
+				}
+			} else {
+				_ = s.stream.Destroy(bg, streamInputUID)
+			}
 		}()
 	}
 

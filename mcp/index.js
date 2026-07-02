@@ -71,11 +71,13 @@ server.tool(
     camera_id: z.string().describe("Camera UUID from list_cameras"),
     ttl_seconds: z.number().int().min(60).max(3600).optional()
       .describe("Auto-expire after this many seconds (default 600)"),
+    record: z.boolean().optional()
+      .describe("Keep the recording as a clip after the session ends"),
   },
-  async ({ camera_id, ttl_seconds }) => {
+  async ({ camera_id, ttl_seconds, record }) => {
     const session = await api("/v1/sessions", {
       method: "POST",
-      body: JSON.stringify({ camera_id, ttl_seconds: ttl_seconds ?? 600 }),
+      body: JSON.stringify({ camera_id, ttl_seconds: ttl_seconds ?? 600, record: record ?? false }),
     });
     return jsonResult({
       session_id: session.id,

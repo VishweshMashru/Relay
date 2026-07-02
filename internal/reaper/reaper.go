@@ -17,6 +17,7 @@ import (
 	"relay/internal/relay"
 	"relay/internal/storage"
 	"relay/internal/stream"
+	"relay/internal/vod"
 )
 
 type Reaper struct {
@@ -62,15 +63,13 @@ func (r *Reaper) Run(ctx context.Context) {
 	}
 }
 
-// sweepAssets deletes assets past their retention TTL — blob first, then row,
-// so a storage failure leaves the row for the next sweep instead of orphaning
-// the object.
+// sweepAssets deletes assets past their retention TTL — stored object first,
+// then row, so a storage failure leaves the row for the next sweep instead
+// of orphaning the object. S3-sourced assets delete from the blob store,
+// cloudflare-sourced ones (live recordings) via the Stream API.
 func (r *Reaper) sweepAssets(ctx context.Context) {
-	if r.Blobs == nil {
-		return
-	}
 	rows, err := r.Pool.Query(ctx, `
-		SELECT id::text, storage_key FROM assets
+		SELECT id::text, storage_key, source FROM assets
 		WHERE expires_at IS NOT NULL AND expires_at < now()
 		LIMIT 100
 	`)
@@ -78,11 +77,11 @@ func (r *Reaper) sweepAssets(ctx context.Context) {
 		log.Printf("reaper assets: %v", err)
 		return
 	}
-	type expired struct{ id, key string }
+	type expired struct{ id, key, source string }
 	var toDelete []expired
 	for rows.Next() {
 		var e expired
-		if err := rows.Scan(&e.id, &e.key); err != nil {
+		if err := rows.Scan(&e.id, &e.key, &e.source); err != nil {
 			rows.Close()
 			log.Printf("reaper assets: %v", err)
 			return
@@ -91,17 +90,31 @@ func (r *Reaper) sweepAssets(ctx context.Context) {
 	}
 	rows.Close()
 
+	deleted := 0
 	for _, e := range toDelete {
-		if err := r.Blobs.Delete(ctx, e.key); err != nil {
-			log.Printf("reaper assets: delete blob %s: %v", e.id, err)
-			continue
+		switch e.source {
+		case "cloudflare":
+			if err := r.Stream.DeleteVideo(ctx, e.key); err != nil {
+				log.Printf("reaper assets: delete video %s: %v", e.id, err)
+				continue
+			}
+		default: // s3
+			if r.Blobs == nil {
+				continue // storage not configured on this instance; leave for one that has it
+			}
+			if err := r.Blobs.Delete(ctx, e.key); err != nil {
+				log.Printf("reaper assets: delete blob %s: %v", e.id, err)
+				continue
+			}
 		}
 		if _, err := r.Pool.Exec(ctx, `DELETE FROM assets WHERE id = $1`, e.id); err != nil {
 			log.Printf("reaper assets: delete row %s: %v", e.id, err)
+			continue
 		}
+		deleted++
 	}
-	if len(toDelete) > 0 {
-		log.Printf("reaper expired %d asset(s)", len(toDelete))
+	if deleted > 0 {
+		log.Printf("reaper expired %d asset(s)", deleted)
 	}
 }
 
@@ -151,7 +164,8 @@ func (r *Reaper) sweep(ctx context.Context) (int, error) {
 		    -- build the first manifest, so allow the longer startup grace.
 		    OR (ingest = 'edge' AND last_heartbeat_at IS NULL AND started_at < now() - ($2 || ' seconds')::interval)
 		  )
-		RETURNING id::text, COALESCE(camera_id::text, ''), COALESCE(stream_input_uid, '')
+		RETURNING id::text, COALESCE(camera_id::text, ''), COALESCE(stream_input_uid, ''),
+		          project_id::text, record, COALESCE(record_ttl_seconds, 0)
 	`, int(r.StaleAfter.Seconds()), int(r.StartupGrace.Seconds()))
 	if err != nil {
 		return 0, err
@@ -159,12 +173,14 @@ func (r *Reaper) sweep(ctx context.Context) (int, error) {
 	defer rows.Close()
 
 	type expired struct {
-		sessionID, cameraID, streamUID string
+		sessionID, cameraID, streamUID, projectID string
+		record                                    bool
+		recordTTL                                 int
 	}
 	var toReap []expired
 	for rows.Next() {
 		var e expired
-		if err := rows.Scan(&e.sessionID, &e.cameraID, &e.streamUID); err != nil {
+		if err := rows.Scan(&e.sessionID, &e.cameraID, &e.streamUID, &e.projectID, &e.record, &e.recordTTL); err != nil {
 			return 0, err
 		}
 		toReap = append(toReap, e)
@@ -199,11 +215,19 @@ func (r *Reaper) sweep(ctx context.Context) (int, error) {
 			}
 		}
 
-		// Destroy the CF input in a detached context — a request context
-		// canceling shouldn't leak billing.
+		// Tear down the CF input in a detached context — a request context
+		// canceling shouldn't leak billing. record=true keeps the recording
+		// as an asset; otherwise everything is destroyed.
 		if e.streamUID != "" {
-			bg, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			if err := r.Stream.Destroy(bg, e.streamUID); err != nil {
+			bg, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			if e.record {
+				if _, err := vod.Harvest(bg, r.Pool, r.Stream, vod.Session{
+					ID: e.sessionID, ProjectID: e.projectID, CameraID: e.cameraID,
+					InputUID: e.streamUID, TTLSeconds: e.recordTTL,
+				}); err != nil {
+					log.Printf("reaper: harvest session %s: %v", e.sessionID, err)
+				}
+			} else if err := r.Stream.Destroy(bg, e.streamUID); err != nil {
 				log.Printf("reaper: destroy stream %s: %v", e.streamUID, err)
 			}
 			cancel()

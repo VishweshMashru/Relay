@@ -1,7 +1,7 @@
 package api
 
 import (
-	"crypto/rand"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -20,10 +20,19 @@ const (
 
 // createAsset registers a clip and hands back a presigned upload URL. The
 // client PUTs the bytes straight to storage (video never transits relay-api),
-// then calls completeAsset to flip it ready.
+// then calls completeAsset to flip it ready. Upload is the only asset path
+// that needs blob storage configured — cloudflare-sourced recordings work
+// without it.
 func (s *Server) createAsset(w http.ResponseWriter, r *http.Request) {
-	projectID, ok := s.assetsEnabled(w, r)
+	projectID, ok := auth.ProjectFromContext(r.Context())
 	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no project in context"})
+		return
+	}
+	if s.blobs == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{
+			"error": "uploads not configured (set RELAY_S3_ENDPOINT, RELAY_S3_BUCKET, RELAY_S3_ACCESS_KEY_ID, RELAY_S3_SECRET_ACCESS_KEY)",
+		})
 		return
 	}
 
@@ -66,7 +75,7 @@ func (s *Server) createAsset(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	id := newUUID()
+	id := relay.NewUUID()
 	key := "assets/" + projectID + "/" + id
 	var expires *time.Time
 	if req.TTLSeconds > 0 {
@@ -88,9 +97,9 @@ func (s *Server) createAsset(w http.ResponseWriter, r *http.Request) {
 	if err := s.pool.QueryRow(ctx, `
 		INSERT INTO assets(id, project_id, camera_id, session_id, name, content_type, storage_key, metadata, expires_at)
 		VALUES ($1, $2, NULLIF($3,'')::uuid, NULLIF($4,'')::uuid, NULLIF($5,''), $6, $7, $8, $9)
-		RETURNING id::text, COALESCE(camera_id::text,''), COALESCE(session_id::text,''), COALESCE(name,''), content_type, status, created_at
+		RETURNING id::text, COALESCE(camera_id::text,''), COALESCE(session_id::text,''), COALESCE(name,''), source, content_type, status, created_at
 	`, id, projectID, req.CameraID, req.SessionID, req.Name, req.ContentType, key, metadata, expires).Scan(
-		&a.ID, &a.CameraID, &a.SessionID, &a.Name, &a.ContentType, &a.Status, &a.CreatedAt,
+		&a.ID, &a.CameraID, &a.SessionID, &a.Name, &a.Source, &a.ContentType, &a.Status, &a.CreatedAt,
 	); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -102,20 +111,29 @@ func (s *Server) createAsset(w http.ResponseWriter, r *http.Request) {
 }
 
 // completeAsset verifies the object landed in storage and flips the asset to
-// ready. Size comes from storage, not the client.
+// ready. Size comes from storage, not the client. Only meaningful for
+// uploaded (s3) assets — recordings complete themselves.
 func (s *Server) completeAsset(w http.ResponseWriter, r *http.Request) {
-	projectID, ok := s.assetsEnabled(w, r)
+	projectID, ok := s.projectFromKey(w, r)
 	if !ok {
 		return
 	}
 	id := r.PathValue("id")
 	ctx := r.Context()
 
-	var key string
+	var key, source string
 	if err := s.pool.QueryRow(ctx,
-		`SELECT storage_key FROM assets WHERE id = $1 AND project_id = $2`, id, projectID,
-	).Scan(&key); err != nil {
+		`SELECT storage_key, source FROM assets WHERE id = $1 AND project_id = $2`, id, projectID,
+	).Scan(&key, &source); err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "asset not found"})
+		return
+	}
+	if source != string(relay.AssetSourceS3) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "recordings become ready automatically; complete applies to uploads only"})
+		return
+	}
+	if s.blobs == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "uploads not configured"})
 		return
 	}
 
@@ -146,7 +164,7 @@ func (s *Server) completeAsset(w http.ResponseWriter, r *http.Request) {
 
 // getAsset returns metadata plus fresh presigned playback/download URLs.
 func (s *Server) getAsset(w http.ResponseWriter, r *http.Request) {
-	projectID, ok := s.assetsEnabled(w, r)
+	projectID, ok := s.projectFromKey(w, r)
 	if !ok {
 		return
 	}
@@ -162,7 +180,7 @@ func (s *Server) getAsset(w http.ResponseWriter, r *http.Request) {
 // pagination (?before=<RFC3339>). URLs are not presigned in lists — fetch the
 // asset for playable links.
 func (s *Server) listAssets(w http.ResponseWriter, r *http.Request) {
-	projectID, ok := s.assetsEnabled(w, r)
+	projectID, ok := s.projectFromKey(w, r)
 	if !ok {
 		return
 	}
@@ -186,7 +204,7 @@ func (s *Server) listAssets(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := s.pool.Query(r.Context(), `
 		SELECT id::text, COALESCE(camera_id::text,''), COALESCE(session_id::text,''), COALESCE(name,''),
-		       content_type, COALESCE(size_bytes,0), status, COALESCE(metadata,'null'), expires_at, created_at
+		       source, content_type, COALESCE(size_bytes,0), status, COALESCE(metadata,'null'), expires_at, created_at
 		FROM assets
 		WHERE project_id = $1
 		  AND ($2 = '' OR camera_id = NULLIF($2,'')::uuid)
@@ -204,7 +222,7 @@ func (s *Server) listAssets(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var a relay.Asset
 		var metadata []byte
-		if err := rows.Scan(&a.ID, &a.CameraID, &a.SessionID, &a.Name, &a.ContentType,
+		if err := rows.Scan(&a.ID, &a.CameraID, &a.SessionID, &a.Name, &a.Source, &a.ContentType,
 			&a.SizeBytes, &a.Status, &metadata, &a.ExpiresAt, &a.CreatedAt); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
@@ -215,27 +233,38 @@ func (s *Server) listAssets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"assets": out})
 }
 
-// deleteAsset removes the blob and the row. Blob delete is attempted first;
-// if storage errors we keep the row so the reaper (or a retry) can finish the
-// job instead of orphaning the object.
+// deleteAsset removes the stored object and the row. Object delete happens
+// first; if storage errors we keep the row so the reaper (or a retry) can
+// finish the job instead of orphaning the object.
 func (s *Server) deleteAsset(w http.ResponseWriter, r *http.Request) {
-	projectID, ok := s.assetsEnabled(w, r)
+	projectID, ok := s.projectFromKey(w, r)
 	if !ok {
 		return
 	}
 	id := r.PathValue("id")
 	ctx := r.Context()
 
-	var key string
+	var key, source string
 	if err := s.pool.QueryRow(ctx,
-		`SELECT storage_key FROM assets WHERE id = $1 AND project_id = $2`, id, projectID,
-	).Scan(&key); err != nil {
+		`SELECT storage_key, source FROM assets WHERE id = $1 AND project_id = $2`, id, projectID,
+	).Scan(&key, &source); err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "asset not found"})
 		return
 	}
-	if err := s.blobs.Delete(ctx, key); err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "storage: " + err.Error()})
-		return
+	if source == string(relay.AssetSourceCloudflare) {
+		if err := s.stream.DeleteVideo(ctx, key); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "stream: " + err.Error()})
+			return
+		}
+	} else {
+		if s.blobs == nil {
+			writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "uploads not configured"})
+			return
+		}
+		if err := s.blobs.Delete(ctx, key); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "storage: " + err.Error()})
+			return
+		}
 	}
 	if _, err := s.pool.Exec(ctx,
 		`DELETE FROM assets WHERE id = $1 AND project_id = $2`, id, projectID); err != nil {
@@ -245,7 +274,10 @@ func (s *Server) deleteAsset(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// fetchAsset loads one asset and presigns its playback/download URLs.
+// fetchAsset loads one asset and signs its playback/download URLs. S3 assets
+// get presigned bucket URLs; cloudflare assets (live recordings) get Stream
+// playback + MP4 download URLs, and lazily flip pending→ready as CF finishes
+// processing the recording.
 func (s *Server) fetchAsset(r *http.Request, projectID, id string) (*relay.Asset, error) {
 	ctx := r.Context()
 	var a relay.Asset
@@ -253,15 +285,20 @@ func (s *Server) fetchAsset(r *http.Request, projectID, id string) (*relay.Asset
 	var key string
 	if err := s.pool.QueryRow(ctx, `
 		SELECT id::text, COALESCE(camera_id::text,''), COALESCE(session_id::text,''), COALESCE(name,''),
-		       content_type, COALESCE(size_bytes,0), status, COALESCE(metadata,'null'), expires_at, created_at, storage_key
+		       source, content_type, COALESCE(size_bytes,0), status, COALESCE(metadata,'null'), expires_at, created_at, storage_key
 		FROM assets WHERE id = $1 AND project_id = $2
-	`, id, projectID).Scan(&a.ID, &a.CameraID, &a.SessionID, &a.Name, &a.ContentType,
+	`, id, projectID).Scan(&a.ID, &a.CameraID, &a.SessionID, &a.Name, &a.Source, &a.ContentType,
 		&a.SizeBytes, &a.Status, &metadata, &a.ExpiresAt, &a.CreatedAt, &key); err != nil {
 		return nil, err
 	}
 	_ = json.Unmarshal(metadata, &a.Metadata)
 
-	if a.Status == relay.AssetReady {
+	if a.Source == relay.AssetSourceCloudflare {
+		s.fetchCloudflareURLs(ctx, &a, key)
+		return &a, nil
+	}
+
+	if a.Status == relay.AssetReady && s.blobs != nil {
 		playback, err := s.blobs.PresignGet(ctx, key, playbackURLExpiry, "")
 		if err != nil {
 			log.Printf("assets: presign playback %s: %v", a.ID, err)
@@ -278,18 +315,58 @@ func (s *Server) fetchAsset(r *http.Request, projectID, id string) (*relay.Asset
 	return &a, nil
 }
 
-// assetsEnabled gates every asset handler: storage must be configured and the
-// caller must be a project (API key).
-func (s *Server) assetsEnabled(w http.ResponseWriter, r *http.Request) (string, bool) {
+// fetchCloudflareURLs resolves playback/download for a recording asset,
+// flipping it ready (with real size/duration) once CF finishes processing.
+func (s *Server) fetchCloudflareURLs(ctx context.Context, a *relay.Asset, videoUID string) {
+	video, err := s.stream.GetVideo(ctx, videoUID)
+	if err != nil {
+		log.Printf("assets: get video %s: %v", a.ID, err)
+		return
+	}
+	if a.Status == relay.AssetPending && video.Ready {
+		if _, err := s.pool.Exec(ctx, `
+			UPDATE assets SET status = 'ready', size_bytes = $2,
+			       metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('duration_seconds', $3::numeric)
+			WHERE id = $1
+		`, a.ID, video.SizeBytes, video.DurationSeconds); err != nil {
+			log.Printf("assets: mark ready %s: %v", a.ID, err)
+		} else {
+			a.Status = relay.AssetReady
+			a.SizeBytes = video.SizeBytes
+		}
+	}
+	if !video.Ready {
+		return
+	}
+	playback, err := s.stream.SignPlaybackURL(video.HLSURL, videoUID, time.Now().Add(playbackURLExpiry))
+	if err != nil {
+		log.Printf("assets: sign playback %s: %v", a.ID, err)
+	} else {
+		a.PlaybackURL = playback
+	}
+	// MP4 rendition builds asynchronously on first request; download_url
+	// appears on a later fetch once it's ready.
+	dl, err := s.stream.EnableDownload(ctx, videoUID)
+	if err != nil {
+		log.Printf("assets: enable download %s: %v", a.ID, err)
+		return
+	}
+	if dl.Ready {
+		download, err := s.stream.SignPlaybackURL(dl.URL, videoUID, time.Now().Add(downloadURLExpiry))
+		if err != nil {
+			log.Printf("assets: sign download %s: %v", a.ID, err)
+		} else {
+			a.DownloadURL = download
+		}
+	}
+}
+
+// projectFromKey resolves the caller's project. Asset reads/deletes work for
+// both sources; only uploads additionally require blob storage.
+func (s *Server) projectFromKey(w http.ResponseWriter, r *http.Request) (string, bool) {
 	projectID, ok := auth.ProjectFromContext(r.Context())
 	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no project in context"})
-		return "", false
-	}
-	if s.blobs == nil {
-		writeJSON(w, http.StatusNotImplemented, map[string]string{
-			"error": "assets not configured (set RELAY_S3_ENDPOINT, RELAY_S3_BUCKET, RELAY_S3_ACCESS_KEY_ID, RELAY_S3_SECRET_ACCESS_KEY)",
-		})
 		return "", false
 	}
 	return projectID, true
@@ -312,16 +389,4 @@ func downloadName(a *relay.Asset) string {
 		ext = ".png"
 	}
 	return name + ext
-}
-
-// newUUID returns a random v4 UUID. Generated app-side so the storage key can
-// embed the id before the row exists.
-func newUUID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic("crypto/rand unavailable: " + err.Error())
-	}
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

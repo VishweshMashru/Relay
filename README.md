@@ -22,6 +22,8 @@ POST   /v1/sessions                     start a live session
                                           ingest:"edge" → agent opens the camera's RTSP
                                           ingest:"push" → returns a push_url (drone/OBS, no agent)
                                           protocol:"webrtc" (push only) → WHIP in, WHEP out, sub-second
+                                          record:true → recording becomes an asset at teardown
+                                                        (record_ttl_seconds sets its retention)
 GET    /v1/sessions/{id}                playback URL (viewer token or API key)
 GET    /v1/sessions/{id}/frame.jpg      current frame as JPEG — for AI agents
 DELETE /v1/sessions/{id}                end early; heartbeats + reaper handle the rest
@@ -30,6 +32,9 @@ POST   /v1/assets                       register a clip → presigned upload_url
 POST   /v1/assets/{id}/complete         verify upload, flip ready
 GET    /v1/assets/{id}                  playback_url + download_url (signed)
 GET    /v1/assets                       list, filter by camera, paginate
+
+POST   /v1/webhooks/cloudflare          CF callbacks: live status, encoder disconnects,
+                                        recording-ready (relay-admin webhook create)
 
 POST   /v1/edges                        provision an edge → edge_token
 POST   /v1/edges/{id}/rotate-token      revoke one edge's token
