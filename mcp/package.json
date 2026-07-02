@@ -1,0 +1,17 @@
+{
+  "name": "streamo-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that gives AI agents eyes: live camera frames, sessions, and clips via the Streamo/Relay API",
+  "type": "module",
+  "bin": {
+    "streamo-mcp": "index.js"
+  },
+  "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.0"
+  }
+}
