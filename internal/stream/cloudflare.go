@@ -22,12 +22,16 @@ const apiBase = "https://api.cloudflare.com/client/v4"
 type Provider interface {
 	Provision(ctx context.Context, name string) (*LiveInput, error)
 	Destroy(ctx context.Context, uid string) error
+	// SignPlaybackURL returns a viewer-safe playback URL. Backends without
+	// signed playback return the URL unchanged.
+	SignPlaybackURL(playbackURL, uid string, exp time.Time) (string, error)
 }
 
 type Client struct {
 	accountID string
 	apiToken  string
 	http      *http.Client
+	signing   *SigningKey // nil = unsigned playback
 }
 
 func New(accountID, apiToken string) *Client {
@@ -53,9 +57,15 @@ func (c *Client) Provision(ctx context.Context, name string) (*LiveInput, error)
 	// object, and the HLS manifest URL returns 204 forever. Costs a
 	// per-minute storage line on the account; deleteSession Destroys() the
 	// input which also removes the recording.
+	recording := map[string]any{"mode": "automatic"}
+	if c.signing != nil {
+		// Playback (live + recordings) then requires the RS256 tokens minted
+		// by SignPlaybackURL — a bare manifest URL stops working.
+		recording["requireSignedURLs"] = true
+	}
 	body, _ := json.Marshal(map[string]any{
 		"meta":      map[string]string{"name": name},
-		"recording": map[string]string{"mode": "automatic"},
+		"recording": recording,
 	})
 
 	req, err := http.NewRequestWithContext(ctx, "POST",

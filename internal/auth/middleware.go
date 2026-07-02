@@ -75,7 +75,9 @@ func (m *Middleware) APIKey(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // EdgeToken verifies a Bearer JWT and attaches project_id + edge_id to the
-// context. Stateless — no DB lookup.
+// context. One DB round trip per call: it checks the token's `ver` claim
+// against edges.token_version (per-edge revocation) and stamps last_seen_at
+// (edge online status for the dashboard) in the same UPDATE.
 func (m *Middleware) EdgeToken(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		raw := extractBearer(r)
@@ -86,6 +88,17 @@ func (m *Middleware) EdgeToken(next http.HandlerFunc) http.HandlerFunc {
 		claims, err := VerifyEdgeToken(m.JWTSecret, raw)
 		if err != nil {
 			unauthorized(w, "invalid edge token")
+			return
+		}
+		// ver 0 = token minted before versioning existed; honor it while the
+		// edge is still on version 1 so deployed edges survive the migration.
+		tag, err := m.Pool.Exec(r.Context(), `
+			UPDATE edges SET last_seen_at = now()
+			WHERE id = $1 AND project_id = $2
+			  AND (token_version = $3 OR ($3 = 0 AND token_version = 1))
+		`, claims.EdgeID, claims.ProjectID, claims.Version)
+		if err != nil || tag.RowsAffected() == 0 {
+			unauthorized(w, "edge token revoked")
 			return
 		}
 		ctx := WithProject(r.Context(), claims.ProjectID)

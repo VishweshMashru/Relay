@@ -55,9 +55,15 @@ func (s *Server) routes() {
 
 	// Customer-facing — require API key
 	s.mux.HandleFunc("POST /v1/sessions", s.mw.APIKey(s.createSession))
+	s.mux.HandleFunc("GET /v1/sessions", s.mw.APIKey(s.listSessions))
 	s.mux.HandleFunc("POST /v1/edges", s.mw.APIKey(s.provisionEdge))
+	s.mux.HandleFunc("GET /v1/edges", s.mw.APIKey(s.listEdges))
+	s.mux.HandleFunc("POST /v1/edges/{edge_id}/rotate-token", s.mw.APIKey(s.rotateEdgeToken))
 	s.mux.HandleFunc("POST /v1/edges/{edge_id}/cameras", s.mw.APIKey(s.createCamera))
 	s.mux.HandleFunc("GET /v1/edges/{edge_id}/cameras", s.mw.APIKey(s.listCameras))
+	s.mux.HandleFunc("GET /v1/keys", s.mw.APIKey(s.listKeys))
+	s.mux.HandleFunc("POST /v1/keys", s.mw.APIKey(s.createKey))
+	s.mux.HandleFunc("DELETE /v1/keys/{id}", s.mw.APIKey(s.deleteKey))
 
 	// Assets (VOD) — require API key; 501 until blob storage is configured.
 	s.mux.HandleFunc("POST /v1/assets", s.mw.APIKey(s.createAsset))
@@ -72,6 +78,7 @@ func (s *Server) routes() {
 
 	// Admin — require RELAY_ADMIN_TOKEN. Dashboard-only endpoints.
 	s.mux.HandleFunc("POST /v1/admin/onboard", s.mw.Admin(s.adminOnboard))
+	s.mux.HandleFunc("POST /v1/admin/user-key", s.mw.Admin(s.adminUserKey))
 
 	// Reference viewer, embedded via //go:embed. Same origin as the API,
 	// so the browser doesn't need CORS for its own calls.

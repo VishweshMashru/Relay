@@ -139,6 +139,13 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	// With a CF signing key configured, the manifest URL embeds a token that
+	// dies with the session; the stored URL stays unsigned.
+	sess.ViewerURL, err = s.stream.SignPlaybackURL(sess.ViewerURL, input.UID, expires)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
 	writeJSON(w, http.StatusOK, sess)
 }
 
@@ -148,14 +155,20 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var sess relay.Session
+	var streamUID string
 	err := s.pool.QueryRow(r.Context(), `
-		SELECT id::text, camera_id::text, status, protocol, COALESCE(viewer_url,''), started_at, COALESCE(last_heartbeat_at, started_at), expires_at
+		SELECT id::text, camera_id::text, status, protocol, COALESCE(viewer_url,''), COALESCE(stream_input_uid,''), started_at, COALESCE(last_heartbeat_at, started_at), expires_at
 		FROM sessions WHERE id = $1
 	`, id).Scan(
-		&sess.ID, &sess.CameraID, &sess.Status, &sess.Protocol, &sess.ViewerURL, &sess.StartedAt, &sess.LastHeartbeatAt, &sess.ExpiresAt,
+		&sess.ID, &sess.CameraID, &sess.Status, &sess.Protocol, &sess.ViewerURL, &streamUID, &sess.StartedAt, &sess.LastHeartbeatAt, &sess.ExpiresAt,
 	)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
+		return
+	}
+	sess.ViewerURL, err = s.stream.SignPlaybackURL(sess.ViewerURL, streamUID, sess.ExpiresAt)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, sess)

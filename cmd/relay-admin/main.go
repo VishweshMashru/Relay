@@ -23,6 +23,7 @@ import (
 
 	"relay/internal/auth"
 	"relay/internal/db"
+	"relay/internal/stream"
 )
 
 func main() {
@@ -79,6 +80,8 @@ func main() {
 	case "camera list":
 		mustArgs(rest, 1, "camera list <edge_id>")
 		cameraList(ctx, pool, rest[0])
+	case "streamkey create":
+		streamkeyCreate(ctx)
 	default:
 		usage()
 		os.Exit(1)
@@ -137,7 +140,7 @@ func edgeCreate(ctx context.Context, pool *pgxpool.Pool, secret []byte, projectI
 	`, projectID, name).Scan(&edgeID); err != nil {
 		die("insert edge: %v", err)
 	}
-	tok, err := auth.SignEdgeToken(secret, projectID, edgeID)
+	tok, err := auth.SignEdgeToken(secret, projectID, edgeID, 1)
 	if err != nil {
 		die("sign token: %v", err)
 	}
@@ -197,6 +200,23 @@ func cameraList(ctx context.Context, pool *pgxpool.Pool, edgeID string) {
 	}
 }
 
+// streamkeyCreate provisions a Cloudflare Stream signing key and prints the
+// env vars relay-api needs for signed playback. Run once per account.
+func streamkeyCreate(ctx context.Context) {
+	accountID, apiToken := os.Getenv("ACCOUNT_ID"), os.Getenv("API_TOKEN")
+	if accountID == "" || apiToken == "" {
+		die("ACCOUNT_ID and API_TOKEN are required (Cloudflare Stream)")
+	}
+	id, pemB64, err := stream.New(accountID, apiToken).CreateSigningKey(ctx)
+	if err != nil {
+		die("create signing key: %v", err)
+	}
+	fmt.Println("Cloudflare Stream signing key created. Add to relay-api's environment:")
+	fmt.Printf("RELAY_CF_SIGNING_KEY_ID=%s\n", id)
+	fmt.Printf("RELAY_CF_SIGNING_KEY_PEM=%s\n", pemB64)
+	fmt.Println("(the PEM is never shown again — store it now)")
+}
+
 func mustGenAPIKey() (raw, prefix, hash string) {
 	raw, prefix, hash, err := auth.GenerateAPIKey()
 	if err != nil {
@@ -223,5 +243,6 @@ func usage() {
   relay-admin edge    create <project_id> <name>
   relay-admin edge    list   [<project_id>]
   relay-admin camera  create <edge_id> <name>
-  relay-admin camera  list   <edge_id>`)
+  relay-admin camera  list   <edge_id>
+  relay-admin streamkey create   (needs ACCOUNT_ID + API_TOKEN)`)
 }

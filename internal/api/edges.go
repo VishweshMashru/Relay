@@ -43,7 +43,7 @@ func (s *Server) provisionEdge(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	tok, err := auth.SignEdgeToken(s.mw.JWTSecret, projectID, edgeID)
+	tok, err := auth.SignEdgeToken(s.mw.JWTSecret, projectID, edgeID, 1)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -52,6 +52,118 @@ func (s *Server) provisionEdge(w http.ResponseWriter, r *http.Request) {
 		"edge_id":    edgeID,
 		"edge_token": tok,
 	})
+}
+
+// listEdges powers the dashboard's edges page. "online" means the edge's
+// long-poll checked in within the last minute (polls run every ~25s).
+func (s *Server) listEdges(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := auth.ProjectFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no project in context"})
+		return
+	}
+	rows, err := s.pool.Query(r.Context(), `
+		SELECT e.id::text, e.name, COALESCE(e.hostname,''), e.last_seen_at, e.created_at,
+		       (SELECT count(*) FROM cameras c WHERE c.edge_id = e.id),
+		       COALESCE(e.last_seen_at > now() - interval '60 seconds', false)
+		FROM edges e
+		WHERE e.project_id = $1
+		ORDER BY e.created_at
+	`, projectID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+	out := []map[string]any{}
+	for rows.Next() {
+		var id, name, hostname string
+		var lastSeen *time.Time
+		var created time.Time
+		var cameras int
+		var online bool
+		if err := rows.Scan(&id, &name, &hostname, &lastSeen, &created, &cameras, &online); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		out = append(out, map[string]any{
+			"id": id, "name": name, "hostname": hostname,
+			"last_seen_at": lastSeen, "created_at": created,
+			"camera_count": cameras, "online": online,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"edges": out})
+}
+
+// rotateEdgeToken revokes every outstanding token for one edge and returns a
+// fresh one — for a leaked or decommissioned edge box, without nuking the
+// whole fleet via RELAY_JWT_SECRET rotation.
+func (s *Server) rotateEdgeToken(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := auth.ProjectFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no project in context"})
+		return
+	}
+	edgeID := r.PathValue("edge_id")
+	var version int
+	if err := s.pool.QueryRow(r.Context(), `
+		UPDATE edges SET token_version = token_version + 1
+		WHERE id = $1 AND project_id = $2
+		RETURNING token_version
+	`, edgeID, projectID).Scan(&version); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "edge not found"})
+		return
+	}
+	tok, err := auth.SignEdgeToken(s.mw.JWTSecret, projectID, edgeID, version)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"edge_id":    edgeID,
+		"edge_token": tok,
+	})
+}
+
+// listSessions powers the dashboard's sessions page. Project-scoped via the
+// camera→edge chain; optional ?status= filter.
+func (s *Server) listSessions(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := auth.ProjectFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no project in context"})
+		return
+	}
+	status := r.URL.Query().Get("status")
+	rows, err := s.pool.Query(r.Context(), `
+		SELECT se.id::text, se.camera_id::text, c.name, e.name, se.status, se.protocol,
+		       se.started_at, COALESCE(se.last_heartbeat_at, se.started_at), se.expires_at
+		FROM sessions se
+		JOIN cameras c ON c.id = se.camera_id
+		JOIN edges e ON e.id = c.edge_id
+		WHERE e.project_id = $1 AND ($2 = '' OR se.status = $2)
+		ORDER BY se.started_at DESC
+		LIMIT 100
+	`, projectID, status)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+	out := []map[string]any{}
+	for rows.Next() {
+		var id, cameraID, cameraName, edgeName, st, protocol string
+		var started, heartbeat, expires time.Time
+		if err := rows.Scan(&id, &cameraID, &cameraName, &edgeName, &st, &protocol, &started, &heartbeat, &expires); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		out = append(out, map[string]any{
+			"id": id, "camera_id": cameraID, "camera_name": cameraName, "edge_name": edgeName,
+			"status": st, "protocol": protocol,
+			"started_at": started, "last_heartbeat_at": heartbeat, "expires_at": expires,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sessions": out})
 }
 
 // createCamera is customer-facing. Adds a camera to an edge the caller owns.

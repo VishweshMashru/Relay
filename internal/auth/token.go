@@ -7,17 +7,21 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// EdgeClaims is what we sign into an edge's JWT. No expiry — rotate on demand.
+// EdgeClaims is what we sign into an edge's JWT. No expiry, but revocable:
+// Version is checked against edges.token_version on every authed edge call,
+// so bumping the row kills outstanding tokens for that edge alone.
 type EdgeClaims struct {
 	ProjectID string `json:"project_id"`
 	EdgeID    string `json:"edge_id"`
+	Version   int    `json:"ver"`
 	jwt.RegisteredClaims
 }
 
-func SignEdgeToken(secret []byte, projectID, edgeID string) (string, error) {
+func SignEdgeToken(secret []byte, projectID, edgeID string, version int) (string, error) {
 	claims := EdgeClaims{
 		ProjectID: projectID,
 		EdgeID:    edgeID,
+		Version:   version,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:   "relay",
 			IssuedAt: jwt.NewNumericDate(time.Now()),

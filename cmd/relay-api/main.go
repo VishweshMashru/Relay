@@ -55,6 +55,20 @@ func main() {
 
 	streamClient := stream.New(accountID, apiToken)
 
+	// With a CF Stream signing key, live inputs require signed playback URLs
+	// and viewers get manifest tokens that die with the session. Provision
+	// one with `relay-admin streamkey create`.
+	if keyID := os.Getenv("RELAY_CF_SIGNING_KEY_ID"); keyID != "" {
+		signingKey, err := stream.NewSigningKey(keyID, os.Getenv("RELAY_CF_SIGNING_KEY_PEM"))
+		if err != nil {
+			log.Fatalf("stream signing key: %v", err)
+		}
+		streamClient = streamClient.WithSigningKey(signingKey)
+		log.Print("signed playback enabled")
+	} else {
+		log.Print("signed playback disabled: RELAY_CF_SIGNING_KEY_ID not set")
+	}
+
 	// Blob storage backs the assets (VOD) domain. Optional: without it the
 	// asset endpoints return 501 and everything else works.
 	var blobs storage.Store
