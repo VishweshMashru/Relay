@@ -1,34 +1,82 @@
 package edge
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"sync"
+	"time"
 )
 
-// ffmpegManager owns the ffmpeg subprocesses. One per active session. Safe
-// for concurrent Start/Stop from the poll loop.
+// ffmpegManager owns the ffmpeg subprocesses. One supervised task per active
+// session: if ffmpeg dies while the session is still wanted (camera blip,
+// network drop), it restarts with backoff instead of leaving the session
+// "live" with a dead stream. Safe for concurrent Start/Stop from the poll loop.
 type ffmpegManager struct {
 	mu    sync.Mutex
-	procs map[string]*exec.Cmd
+	tasks map[string]*streamTask
+}
+
+type streamTask struct {
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 func newFfmpegManager() *ffmpegManager {
-	return &ffmpegManager{procs: make(map[string]*exec.Cmd)}
+	return &ffmpegManager{tasks: make(map[string]*streamTask)}
 }
 
-// Start spawns ffmpeg pushing RTSP → RTMPS with codec copy (no re-encode).
-// Returns quickly; the process runs until Stop or self-exits.
+// Start begins supervising an RTSP→RTMPS push for the session. Returns
+// quickly; the stream runs (and self-heals) until Stop.
 func (m *ffmpegManager) Start(sessionID, rtspURL, pushURL string) error {
 	m.mu.Lock()
-	if _, exists := m.procs[sessionID]; exists {
-		m.mu.Unlock()
+	defer m.mu.Unlock()
+	if _, exists := m.tasks[sessionID]; exists {
 		return fmt.Errorf("session %s already streaming", sessionID)
 	}
-	m.mu.Unlock()
+	ctx, cancel := context.WithCancel(context.Background())
+	t := &streamTask{cancel: cancel, done: make(chan struct{})}
+	m.tasks[sessionID] = t
+	go m.supervise(ctx, t, sessionID, rtspURL, pushURL)
+	return nil
+}
 
+func (m *ffmpegManager) supervise(ctx context.Context, t *streamTask, sessionID, rtspURL, pushURL string) {
+	defer close(t.done)
+	defer func() {
+		m.mu.Lock()
+		delete(m.tasks, sessionID)
+		m.mu.Unlock()
+	}()
+
+	backoff := 2 * time.Second
+	for {
+		started := time.Now()
+		err := runFfmpeg(ctx, sessionID, rtspURL, pushURL)
+		if ctx.Err() != nil {
+			return // stopped on purpose
+		}
+		// A healthy stretch means the earlier failures were transient.
+		if time.Since(started) > time.Minute {
+			backoff = 2 * time.Second
+		}
+		log.Printf("ffmpeg exited session=%s err=%v — restarting in %s", sessionID, err, backoff)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+		if backoff < 30*time.Second {
+			backoff *= 2
+		}
+	}
+}
+
+// runFfmpeg blocks until the process exits. Cancelling ctx kills it.
+func runFfmpeg(ctx context.Context, sessionID, rtspURL, pushURL string) error {
 	// Transcode to H.264 with CF Stream Live's constraints. Codec copy would
 	// be cheaper but many RTSP sources (iOS IP-cam apps especially) emit
 	// H.265, which CF Stream RTMPS ingest silently rejects. ~10% CPU for
@@ -38,7 +86,7 @@ func (m *ffmpegManager) Start(sessionID, rtspURL, pushURL string) error {
 	//   -pix_fmt yuv420p:  universal browser compat
 	//   -g 60:             keyframe every ~2s at 30fps for smooth HLS chunking
 	//   -an:               drop audio (privacy + one less codec to fight)
-	cmd := exec.Command("ffmpeg",
+	cmd := exec.CommandContext(ctx, "ffmpeg",
 		"-loglevel", "info",
 		"-rtsp_transport", "tcp",
 		"-use_wallclock_as_timestamps", "1",
@@ -58,41 +106,23 @@ func (m *ffmpegManager) Start(sessionID, rtspURL, pushURL string) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("ffmpeg start: %w", err)
 	}
-
-	m.mu.Lock()
-	m.procs[sessionID] = cmd
-	m.mu.Unlock()
-
 	// Log the push URL with the stream key masked so we can see the shape
 	// but not leak the credential to shared logs.
 	log.Printf("ffmpeg started session=%s pid=%d push=%s", sessionID, cmd.Process.Pid, maskURL(pushURL))
-
-	// Reap on exit so a crash doesn't leave the map stale.
-	go func() {
-		err := cmd.Wait()
-		m.mu.Lock()
-		delete(m.procs, sessionID)
-		m.mu.Unlock()
-		if err != nil {
-			log.Printf("ffmpeg exited session=%s err=%v", sessionID, err)
-		} else {
-			log.Printf("ffmpeg exited session=%s cleanly", sessionID)
-		}
-	}()
-	return nil
+	return cmd.Wait()
 }
 
-// Stop kills the ffmpeg process for a session. No-op if there isn't one.
+// Stop ends the supervised stream for a session. No-op if there isn't one.
 func (m *ffmpegManager) Stop(sessionID string) {
 	m.mu.Lock()
-	cmd, ok := m.procs[sessionID]
+	t, ok := m.tasks[sessionID]
 	m.mu.Unlock()
-	if !ok || cmd.Process == nil {
+	if !ok {
 		return
 	}
-	if err := cmd.Process.Kill(); err != nil {
-		log.Printf("ffmpeg kill session=%s: %v", sessionID, err)
-	}
+	t.cancel()
+	<-t.done
+	log.Printf("stream stopped session=%s", sessionID)
 }
 
 // maskURL hides everything after the last "/" so stream keys don't hit logs.
@@ -114,31 +144,20 @@ func maskURL(u string) string {
 	if len(shown) > 4 {
 		shown = shown[:4] + "…"
 	}
-	return u[:idx+1] + shown + " (" + itoa(len(tail)) + " chars)"
+	return u[:idx+1] + shown + " (" + strconv.Itoa(len(tail)) + " chars)"
 }
 
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var buf [20]byte
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(buf[i:])
-}
-
-// StopAll kills every running ffmpeg. Called at agent shutdown.
+// StopAll ends every supervised stream. Called at agent shutdown.
 func (m *ffmpegManager) StopAll() {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	for sid, cmd := range m.procs {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		log.Printf("ffmpeg killed session=%s (shutdown)", sid)
+	tasks := make([]*streamTask, 0, len(m.tasks))
+	for sid, t := range m.tasks {
+		tasks = append(tasks, t)
+		log.Printf("stream stopping session=%s (shutdown)", sid)
+	}
+	m.mu.Unlock()
+	for _, t := range tasks {
+		t.cancel()
+		<-t.done
 	}
 }
