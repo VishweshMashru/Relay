@@ -46,6 +46,36 @@ export function EmptyState({
   );
 }
 
+export function Badge({ tone, children }: { tone: "green" | "neutral" | "amber"; children: React.ReactNode }) {
+  const tones = {
+    green: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    neutral: "bg-neutral-500/10 text-neutral-500",
+  } as const;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${tones[tone]}`}>
+      {children}
+    </span>
+  );
+}
+
+export function Table({ headers, children }: { headers: string[]; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-neutral-200 dark:border-neutral-800 text-left text-xs text-neutral-500">
+            {headers.map((h) => (
+              <th key={h} className="px-4 py-2.5 font-medium">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
 export function PrimaryButton({ children, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
