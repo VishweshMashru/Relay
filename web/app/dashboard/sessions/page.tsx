@@ -31,10 +31,10 @@ export default async function Sessions() {
           {sessions.map((s) => (
             <tr key={s.id}>
               <td className="px-4 py-3">
-                <div className="font-medium">{s.camera_name}</div>
+                <div className="font-medium">{s.camera_name || "push ingest"}</div>
                 <div className="font-mono text-xs text-neutral-500">{s.id}</div>
               </td>
-              <td className="px-4 py-3 text-neutral-500">{s.edge_name}</td>
+              <td className="px-4 py-3 text-neutral-500">{s.edge_name || "—"}</td>
               <td className="px-4 py-3">{statusBadge(s.status)}</td>
               <td className="px-4 py-3 text-neutral-500">{timeAgo(s.started_at)}</td>
               <td className="px-4 py-3 text-neutral-500">{timeAgo(s.last_heartbeat_at)}</td>

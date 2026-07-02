@@ -56,6 +56,7 @@ func (s *Server) routes() {
 	// Customer-facing — require API key
 	s.mux.HandleFunc("POST /v1/sessions", s.mw.APIKey(s.createSession))
 	s.mux.HandleFunc("GET /v1/sessions", s.mw.APIKey(s.listSessions))
+	s.mux.HandleFunc("GET /v1/sessions/{id}/frame.jpg", s.mw.APIKey(s.sessionFrame))
 	s.mux.HandleFunc("POST /v1/edges", s.mw.APIKey(s.provisionEdge))
 	s.mux.HandleFunc("GET /v1/edges", s.mw.APIKey(s.listEdges))
 	s.mux.HandleFunc("POST /v1/edges/{edge_id}/rotate-token", s.mw.APIKey(s.rotateEdgeToken))

@@ -37,14 +37,26 @@ type Camera struct {
 	Name   string `json:"name"`
 }
 
+type IngestType string
+
+const (
+	// IngestEdge: the edge agent opens the camera's RTSP feed on demand.
+	IngestEdge IngestType = "edge"
+	// IngestPush: the client pushes RTMPS directly to the returned push_url —
+	// a drone controller, OBS, any encoder. No edge agent involved.
+	IngestPush IngestType = "push"
+)
+
 // Session is one on-demand viewer session.
 type Session struct {
 	ID              string        `json:"id"`
-	CameraID        string        `json:"camera_id"`
+	CameraID        string        `json:"camera_id,omitempty"` // empty for push-ingest sessions
+	Ingest          IngestType    `json:"ingest"`
 	Protocol        Protocol      `json:"protocol"`
 	Status          SessionStatus `json:"status"`
 	ViewerURL       string        `json:"viewer_url,omitempty"`
 	ViewerToken     string        `json:"viewer_token,omitempty"` // returned once, at creation
+	PushURL         string        `json:"push_url,omitempty"`     // returned once, push-ingest only
 	StartedAt       time.Time     `json:"started_at"`
 	LastHeartbeatAt time.Time     `json:"last_heartbeat_at"`
 	ExpiresAt       time.Time     `json:"expires_at"`
@@ -106,9 +118,13 @@ type Command struct {
 	Payload   map[string]any `json:"payload,omitempty"`
 }
 
-// CreateSessionRequest is the customer-facing API for starting a viewer session.
+// CreateSessionRequest is the customer-facing API for starting a viewer
+// session. camera_id is required for edge ingest; for push ingest pass
+// ingest:"push" and optionally a name instead.
 type CreateSessionRequest struct {
-	CameraID     string   `json:"camera_id"`
-	Protocol     Protocol `json:"protocol"`
-	TTLSeconds   int      `json:"ttl_seconds"`
+	CameraID   string     `json:"camera_id"`
+	Ingest     IngestType `json:"ingest"`
+	Name       string     `json:"name"`
+	Protocol   Protocol   `json:"protocol"`
+	TTLSeconds int        `json:"ttl_seconds"`
 }

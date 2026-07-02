@@ -21,6 +21,7 @@ export type SessionRow = {
   camera_id: string;
   camera_name: string;
   edge_name: string;
+  ingest: "edge" | "push";
   status: "pending" | "live" | "ended" | "expired";
   protocol: string;
   started_at: string;

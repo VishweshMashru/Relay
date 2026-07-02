@@ -137,18 +137,21 @@ func (r *Reaper) sweep(ctx context.Context) (int, error) {
 	// One statement finds+updates candidates and returns what we need to
 	// clean up. Doing it as a single UPDATE ... RETURNING avoids a race
 	// where two reaper instances would double-reap the same session.
+	// Heartbeat staleness only applies to edge-ingest sessions: a push
+	// session (drone, OBS) may legitimately stream with no browser viewer
+	// attached, so it lives until its TTL or an explicit DELETE.
 	rows, err := r.Pool.Query(ctx, `
 		UPDATE sessions
 		SET status = 'expired'
 		WHERE status IN ('pending', 'live')
 		  AND (
 		    expires_at < now()
-		    OR (last_heartbeat_at IS NOT NULL AND last_heartbeat_at < now() - ($1 || ' seconds')::interval)
+		    OR (ingest = 'edge' AND last_heartbeat_at IS NOT NULL AND last_heartbeat_at < now() - ($1 || ' seconds')::interval)
 		    -- Never heartbeated: the viewer may still be waiting for CF to
 		    -- build the first manifest, so allow the longer startup grace.
-		    OR (last_heartbeat_at IS NULL AND started_at < now() - ($2 || ' seconds')::interval)
+		    OR (ingest = 'edge' AND last_heartbeat_at IS NULL AND started_at < now() - ($2 || ' seconds')::interval)
 		  )
-		RETURNING id::text, camera_id::text, COALESCE(stream_input_uid, '')
+		RETURNING id::text, COALESCE(camera_id::text, ''), COALESCE(stream_input_uid, '')
 	`, int(r.StaleAfter.Seconds()), int(r.StartupGrace.Seconds()))
 	if err != nil {
 		return 0, err
@@ -171,26 +174,29 @@ func (r *Reaper) sweep(ctx context.Context) (int, error) {
 	}
 
 	for _, e := range toReap {
-		// Resolve which edge owns this camera so we can send a stop command.
-		var edgeID string
-		if err := r.Pool.QueryRow(ctx,
-			`SELECT edge_id::text FROM cameras WHERE id = $1`, e.cameraID,
-		).Scan(&edgeID); err != nil {
-			log.Printf("reaper: fetch edge for session %s: %v", e.sessionID, err)
-			continue
-		}
-		var cmdID string
-		if err := r.Pool.QueryRow(ctx, `
-			INSERT INTO commands(edge_id, type, session_id, camera_id)
-			VALUES ($1, 'stop', $2, $3) RETURNING id::text
-		`, edgeID, e.sessionID, e.cameraID).Scan(&cmdID); err != nil {
-			log.Printf("reaper: insert stop for session %s: %v", e.sessionID, err)
-			continue
-		}
-		if _, err := r.Pool.Exec(ctx,
-			"SELECT pg_notify($1, $2)", relay.CommandsChannel, edgeID,
-		); err != nil {
-			log.Printf("reaper: notify edge %s: %v", edgeID, err)
+		// Push-ingest sessions have no camera/edge; destroying the CF input
+		// below is what stops them.
+		if e.cameraID != "" {
+			var edgeID string
+			if err := r.Pool.QueryRow(ctx,
+				`SELECT edge_id::text FROM cameras WHERE id = $1`, e.cameraID,
+			).Scan(&edgeID); err != nil {
+				log.Printf("reaper: fetch edge for session %s: %v", e.sessionID, err)
+				continue
+			}
+			var cmdID string
+			if err := r.Pool.QueryRow(ctx, `
+				INSERT INTO commands(edge_id, type, session_id, camera_id)
+				VALUES ($1, 'stop', $2, $3) RETURNING id::text
+			`, edgeID, e.sessionID, e.cameraID).Scan(&cmdID); err != nil {
+				log.Printf("reaper: insert stop for session %s: %v", e.sessionID, err)
+				continue
+			}
+			if _, err := r.Pool.Exec(ctx,
+				"SELECT pg_notify($1, $2)", relay.CommandsChannel, edgeID,
+			); err != nil {
+				log.Printf("reaper: notify edge %s: %v", edgeID, err)
+			}
 		}
 
 		// Destroy the CF input in a detached context — a request context

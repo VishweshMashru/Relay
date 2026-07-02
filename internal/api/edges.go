@@ -135,12 +135,13 @@ func (s *Server) listSessions(w http.ResponseWriter, r *http.Request) {
 	}
 	status := r.URL.Query().Get("status")
 	rows, err := s.pool.Query(r.Context(), `
-		SELECT se.id::text, se.camera_id::text, c.name, e.name, se.status, se.protocol,
+		SELECT se.id::text, COALESCE(se.camera_id::text,''), COALESCE(c.name,''), COALESCE(e.name,''),
+		       se.ingest, se.status, se.protocol,
 		       se.started_at, COALESCE(se.last_heartbeat_at, se.started_at), se.expires_at
 		FROM sessions se
-		JOIN cameras c ON c.id = se.camera_id
-		JOIN edges e ON e.id = c.edge_id
-		WHERE e.project_id = $1 AND ($2 = '' OR se.status = $2)
+		LEFT JOIN cameras c ON c.id = se.camera_id
+		LEFT JOIN edges e ON e.id = c.edge_id
+		WHERE se.project_id = $1 AND ($2 = '' OR se.status = $2)
 		ORDER BY se.started_at DESC
 		LIMIT 100
 	`, projectID, status)
@@ -151,15 +152,15 @@ func (s *Server) listSessions(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	out := []map[string]any{}
 	for rows.Next() {
-		var id, cameraID, cameraName, edgeName, st, protocol string
+		var id, cameraID, cameraName, edgeName, ingest, st, protocol string
 		var started, heartbeat, expires time.Time
-		if err := rows.Scan(&id, &cameraID, &cameraName, &edgeName, &st, &protocol, &started, &heartbeat, &expires); err != nil {
+		if err := rows.Scan(&id, &cameraID, &cameraName, &edgeName, &ingest, &st, &protocol, &started, &heartbeat, &expires); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
 		out = append(out, map[string]any{
 			"id": id, "camera_id": cameraID, "camera_name": cameraName, "edge_name": edgeName,
-			"status": st, "protocol": protocol,
+			"ingest": ingest, "status": st, "protocol": protocol,
 			"started_at": started, "last_heartbeat_at": heartbeat, "expires_at": expires,
 		})
 	}
