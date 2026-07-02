@@ -23,7 +23,9 @@
     <script>
       const params = new URLSearchParams(location.search);
       const sessionID = params.get("session");
+      const token     = params.get("token");
       const apiBase   = params.get("api") || location.origin;
+      const auth      = token ? { Authorization: `Bearer ${token}` } : {};
       const video     = document.getElementById("v");
       const status    = document.getElementById("status");
       const errBox    = document.getElementById("err");
@@ -37,7 +39,8 @@
 
       async function load() {
         if (!sessionID) return fail("Missing ?session=<id> in URL.");
-        const r = await fetch(`${apiBase}/v1/sessions/${sessionID}`);
+        if (!token) return fail("Missing ?token=<viewer_token> in URL.");
+        const r = await fetch(`${apiBase}/v1/sessions/${sessionID}`, { headers: auth });
         if (!r.ok) return fail(`Session lookup failed: ${r.status}`);
         const data = await r.json();
         const url = data.viewer_url;
@@ -76,12 +79,12 @@
 
       // Heartbeat every 10s so the session doesn't expire while we watch.
       setInterval(() => {
-        fetch(`${apiBase}/v1/sessions/${sessionID}/heartbeat`, { method: "POST" }).catch(() => {});
+        fetch(`${apiBase}/v1/sessions/${sessionID}/heartbeat`, { method: "POST", headers: auth }).catch(() => {});
       }, 10000);
 
       // Best-effort stop on close.
       window.addEventListener("pagehide", () => {
-        fetch(`${apiBase}/v1/sessions/${sessionID}`, { method: "DELETE", keepalive: true }).catch(() => {});
+        fetch(`${apiBase}/v1/sessions/${sessionID}`, { method: "DELETE", keepalive: true, headers: auth }).catch(() => {});
       });
 
       load().catch(err => fail(String(err)));

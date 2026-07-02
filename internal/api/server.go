@@ -10,22 +10,25 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"relay/internal/auth"
+	"relay/internal/storage"
 	"relay/internal/stream"
 	"relay/internal/webviewer"
 )
 
 type Server struct {
 	pool     *pgxpool.Pool
-	stream   *stream.Client
+	stream   stream.Provider
+	blobs    storage.Store // nil disables the assets domain
 	mw       *auth.Middleware
 	mux      *http.ServeMux
 	dispatch *dispatcher
 }
 
-func New(pool *pgxpool.Pool, streamClient *stream.Client, jwtSecret, adminToken []byte) *Server {
+func New(pool *pgxpool.Pool, streamProvider stream.Provider, blobs storage.Store, jwtSecret, adminToken []byte) *Server {
 	s := &Server{
 		pool:     pool,
-		stream:   streamClient,
+		stream:   streamProvider,
+		blobs:    blobs,
 		mw:       &auth.Middleware{Pool: pool, JWTSecret: jwtSecret, AdminToken: adminToken},
 		mux:      http.NewServeMux(),
 		dispatch: newDispatcher(pool),
@@ -44,17 +47,24 @@ func (s *Server) routes() {
 	// Public
 	s.mux.HandleFunc("GET /v1/health", s.health)
 
-	// Viewer-facing — public for now (session UUIDs are unguessable). Signed
-	// playback URLs come in a later step.
-	s.mux.HandleFunc("GET /v1/sessions/{id}", s.getSession)
-	s.mux.HandleFunc("POST /v1/sessions/{id}/heartbeat", s.heartbeat)
-	s.mux.HandleFunc("DELETE /v1/sessions/{id}", s.deleteSession)
+	// Viewer-facing — require the per-session viewer token minted at
+	// createSession (Authorization: Bearer or ?token=).
+	s.mux.HandleFunc("GET /v1/sessions/{id}", s.viewerToken(s.getSession))
+	s.mux.HandleFunc("POST /v1/sessions/{id}/heartbeat", s.viewerToken(s.heartbeat))
+	s.mux.HandleFunc("DELETE /v1/sessions/{id}", s.viewerToken(s.deleteSession))
 
 	// Customer-facing — require API key
 	s.mux.HandleFunc("POST /v1/sessions", s.mw.APIKey(s.createSession))
 	s.mux.HandleFunc("POST /v1/edges", s.mw.APIKey(s.provisionEdge))
 	s.mux.HandleFunc("POST /v1/edges/{edge_id}/cameras", s.mw.APIKey(s.createCamera))
 	s.mux.HandleFunc("GET /v1/edges/{edge_id}/cameras", s.mw.APIKey(s.listCameras))
+
+	// Assets (VOD) — require API key; 501 until blob storage is configured.
+	s.mux.HandleFunc("POST /v1/assets", s.mw.APIKey(s.createAsset))
+	s.mux.HandleFunc("GET /v1/assets", s.mw.APIKey(s.listAssets))
+	s.mux.HandleFunc("GET /v1/assets/{id}", s.mw.APIKey(s.getAsset))
+	s.mux.HandleFunc("POST /v1/assets/{id}/complete", s.mw.APIKey(s.completeAsset))
+	s.mux.HandleFunc("DELETE /v1/assets/{id}", s.mw.APIKey(s.deleteAsset))
 
 	// Edge-facing — require signed edge JWT
 	s.mux.HandleFunc("GET /v1/edges/commands", s.mw.EdgeToken(s.edgeCommands))

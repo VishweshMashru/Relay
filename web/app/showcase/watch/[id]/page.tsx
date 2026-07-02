@@ -10,7 +10,7 @@ import { Player } from "@/components/player";
 // scaffold we simulate the flow — swap in a real fetch when API keys are wired.
 export default function Watch({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [session, setSession] = useState<{ id: string; viewer_url: string } | null>(null);
+  const [session, setSession] = useState<{ id: string; viewer_url: string; viewer_token: string } | null>(null);
   const [status, setStatus] = useState<"starting" | "ready" | "error">("starting");
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +25,7 @@ export default function Watch({ params }: { params: Promise<{ id: string }> }) {
         const body = await res.text();
         throw new Error(`session ${res.status}: ${body || res.statusText}`);
       }
-      const data = (await res.json()) as { id: string; viewer_url: string };
+      const data = (await res.json()) as { id: string; viewer_url: string; viewer_token: string };
       setSession(data);
       setStatus("ready");
     } catch (e) {
@@ -40,14 +40,16 @@ export default function Watch({ params }: { params: Promise<{ id: string }> }) {
 
   const heartbeat = useCallback(async () => {
     if (!session) return;
-    await fetch(`/api/showcase/sessions/${session.id}/heartbeat`, { method: "POST" }).catch(() => {});
+    await fetch(`/api/showcase/sessions/${session.id}/heartbeat?token=${session.viewer_token}`, {
+      method: "POST",
+    }).catch(() => {});
   }, [session]);
 
   const leave = useCallback(() => {
     if (!session) return;
     // sendBeacon can only POST, which the API doesn't route — keepalive lets
     // a real DELETE outlive the unloading page.
-    fetch(`/api/showcase/sessions/${session.id}`, {
+    fetch(`/api/showcase/sessions/${session.id}?token=${session.viewer_token}`, {
       method: "DELETE",
       keepalive: true,
     }).catch(() => {});

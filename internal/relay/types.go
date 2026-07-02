@@ -44,9 +44,49 @@ type Session struct {
 	Protocol        Protocol      `json:"protocol"`
 	Status          SessionStatus `json:"status"`
 	ViewerURL       string        `json:"viewer_url,omitempty"`
+	ViewerToken     string        `json:"viewer_token,omitempty"` // returned once, at creation
 	StartedAt       time.Time     `json:"started_at"`
 	LastHeartbeatAt time.Time     `json:"last_heartbeat_at"`
 	ExpiresAt       time.Time     `json:"expires_at"`
+}
+
+type AssetStatus string
+
+const (
+	AssetPending AssetStatus = "pending"
+	AssetReady   AssetStatus = "ready"
+)
+
+// Asset is a stored video object — an uploaded clip today, a live-session
+// recording later. URLs are presigned per-fetch and never persisted.
+type Asset struct {
+	ID          string            `json:"id"`
+	CameraID    string            `json:"camera_id,omitempty"`
+	SessionID   string            `json:"session_id,omitempty"`
+	Name        string            `json:"name,omitempty"`
+	ContentType string            `json:"content_type"`
+	SizeBytes   int64             `json:"size_bytes,omitempty"`
+	Status      AssetStatus       `json:"status"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+	ExpiresAt   *time.Time        `json:"expires_at,omitempty"`
+	CreatedAt   time.Time         `json:"created_at"`
+
+	// Populated on create (upload) or fetch (playback/download).
+	UploadURL   string `json:"upload_url,omitempty"`
+	PlaybackURL string `json:"playback_url,omitempty"`
+	DownloadURL string `json:"download_url,omitempty"`
+}
+
+// CreateAssetRequest is the customer-facing API for registering a clip
+// upload. The response carries a presigned upload_url; the client PUTs the
+// bytes there, then calls POST /v1/assets/{id}/complete.
+type CreateAssetRequest struct {
+	Name        string            `json:"name"`
+	ContentType string            `json:"content_type"`
+	CameraID    string            `json:"camera_id"`
+	SessionID   string            `json:"session_id"`
+	TTLSeconds  int               `json:"ttl_seconds"` // 0 = retain indefinitely
+	Metadata    map[string]string `json:"metadata"`
 }
 
 type CommandType string

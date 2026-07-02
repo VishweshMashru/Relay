@@ -4,11 +4,34 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"relay/internal/auth"
 	"relay/internal/relay"
 )
+
+// viewerToken gates the viewer-facing session endpoints. The token is minted
+// at createSession, scoped to that session, and expires with it. Accepted as
+// Authorization: Bearer or ?token= (players that can't set headers, e.g. a
+// plain <video> src or an iframe URL, use the query form).
+func (s *Server) viewerToken(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		raw := r.URL.Query().Get("token")
+		if h := r.Header.Get("Authorization"); h != "" {
+			raw = strings.TrimPrefix(h, "Bearer ")
+		}
+		if raw == "" {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "viewer token required"})
+			return
+		}
+		if err := auth.VerifyViewerToken(s.mw.JWTSecret, raw, r.PathValue("id")); err != nil {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid viewer token"})
+			return
+		}
+		next(w, r)
+	}
+}
 
 // createSession is the customer-facing endpoint. Requires API key. Verifies
 // the target camera belongs to the caller's project, provisions a CF Stream
@@ -108,11 +131,20 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	committed = true
+
+	// Minted once, returned only here. The customer's backend passes it to
+	// their viewer alongside the session id.
+	sess.ViewerToken, err = auth.SignViewerToken(s.mw.JWTSecret, sess.ID, expires)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
 	writeJSON(w, http.StatusOK, sess)
 }
 
-// getSession is public — the viewer needs to fetch the playback URL. Session
-// UUIDs are unguessable. Signed playback URLs will come with the auth follow-up.
+// getSession returns the playback URL to a token-holding viewer. Note the CF
+// manifest itself is still unsigned — Cloudflare-level signed playback is the
+// remaining follow-up (requires a Stream signing key on the account).
 func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var sess relay.Session

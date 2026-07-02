@@ -15,27 +15,34 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"relay/internal/relay"
+	"relay/internal/storage"
 	"relay/internal/stream"
 )
 
 type Reaper struct {
-	Pool       *pgxpool.Pool
-	Stream     *stream.Client
-	Interval   time.Duration // how often to sweep
-	StaleAfter time.Duration // no-heartbeat threshold before we consider a session dead
+	Pool         *pgxpool.Pool
+	Stream       stream.Provider
+	Blobs        storage.Store // nil disables asset retention sweeps
+	Interval     time.Duration // how often to sweep
+	StaleAfter   time.Duration // no-heartbeat threshold before we consider a live session dead
+	StartupGrace time.Duration // extra slack for pending sessions that never heartbeated — CF manifest build + ffmpeg connect can take ~60s
+
+	lastPrune time.Time
 }
 
-func New(pool *pgxpool.Pool, s *stream.Client) *Reaper {
+func New(pool *pgxpool.Pool, s stream.Provider, blobs storage.Store) *Reaper {
 	return &Reaper{
-		Pool:       pool,
-		Stream:     s,
-		Interval:   10 * time.Second,
-		StaleAfter: 30 * time.Second,
+		Pool:         pool,
+		Stream:       s,
+		Blobs:        blobs,
+		Interval:     10 * time.Second,
+		StaleAfter:   30 * time.Second,
+		StartupGrace: 90 * time.Second,
 	}
 }
 
 func (r *Reaper) Run(ctx context.Context) {
-	log.Printf("reaper starting interval=%s stale_after=%s", r.Interval, r.StaleAfter)
+	log.Printf("reaper starting interval=%s stale_after=%s startup_grace=%s", r.Interval, r.StaleAfter, r.StartupGrace)
 	ticker := time.NewTicker(r.Interval)
 	defer ticker.Stop()
 	for {
@@ -49,7 +56,78 @@ func (r *Reaper) Run(ctx context.Context) {
 			} else if n > 0 {
 				log.Printf("reaper expired %d session(s)", n)
 			}
+			r.sweepAssets(ctx)
+			r.prune(ctx)
 		}
+	}
+}
+
+// sweepAssets deletes assets past their retention TTL — blob first, then row,
+// so a storage failure leaves the row for the next sweep instead of orphaning
+// the object.
+func (r *Reaper) sweepAssets(ctx context.Context) {
+	if r.Blobs == nil {
+		return
+	}
+	rows, err := r.Pool.Query(ctx, `
+		SELECT id::text, storage_key FROM assets
+		WHERE expires_at IS NOT NULL AND expires_at < now()
+		LIMIT 100
+	`)
+	if err != nil {
+		log.Printf("reaper assets: %v", err)
+		return
+	}
+	type expired struct{ id, key string }
+	var toDelete []expired
+	for rows.Next() {
+		var e expired
+		if err := rows.Scan(&e.id, &e.key); err != nil {
+			rows.Close()
+			log.Printf("reaper assets: %v", err)
+			return
+		}
+		toDelete = append(toDelete, e)
+	}
+	rows.Close()
+
+	for _, e := range toDelete {
+		if err := r.Blobs.Delete(ctx, e.key); err != nil {
+			log.Printf("reaper assets: delete blob %s: %v", e.id, err)
+			continue
+		}
+		if _, err := r.Pool.Exec(ctx, `DELETE FROM assets WHERE id = $1`, e.id); err != nil {
+			log.Printf("reaper assets: delete row %s: %v", e.id, err)
+		}
+	}
+	if len(toDelete) > 0 {
+		log.Printf("reaper expired %d asset(s)", len(toDelete))
+	}
+}
+
+// prune keeps the commands and sessions tables from growing forever. Runs at
+// most hourly. Commands are dead after the 1h redelivery window; ended
+// sessions keep 30 days of history for debugging/billing.
+func (r *Reaper) prune(ctx context.Context) {
+	if time.Since(r.lastPrune) < time.Hour {
+		return
+	}
+	r.lastPrune = time.Now()
+	if tag, err := r.Pool.Exec(ctx,
+		`DELETE FROM commands WHERE created_at < now() - interval '24 hours'`); err != nil {
+		log.Printf("reaper prune commands: %v", err)
+	} else if tag.RowsAffected() > 0 {
+		log.Printf("reaper pruned %d command(s)", tag.RowsAffected())
+	}
+	if tag, err := r.Pool.Exec(ctx, `
+		DELETE FROM sessions s
+		WHERE s.status IN ('ended','expired')
+		  AND s.created_at < now() - interval '30 days'
+		  AND NOT EXISTS (SELECT 1 FROM assets a WHERE a.session_id = s.id)
+	`); err != nil {
+		log.Printf("reaper prune sessions: %v", err)
+	} else if tag.RowsAffected() > 0 {
+		log.Printf("reaper pruned %d session(s)", tag.RowsAffected())
 	}
 }
 
@@ -66,10 +144,12 @@ func (r *Reaper) sweep(ctx context.Context) (int, error) {
 		  AND (
 		    expires_at < now()
 		    OR (last_heartbeat_at IS NOT NULL AND last_heartbeat_at < now() - ($1 || ' seconds')::interval)
-		    OR (last_heartbeat_at IS NULL AND started_at < now() - ($1 || ' seconds')::interval)
+		    -- Never heartbeated: the viewer may still be waiting for CF to
+		    -- build the first manifest, so allow the longer startup grace.
+		    OR (last_heartbeat_at IS NULL AND started_at < now() - ($2 || ' seconds')::interval)
 		  )
 		RETURNING id::text, camera_id::text, COALESCE(stream_input_uid, '')
-	`, int(r.StaleAfter.Seconds()))
+	`, int(r.StaleAfter.Seconds()), int(r.StartupGrace.Seconds()))
 	if err != nil {
 		return 0, err
 	}

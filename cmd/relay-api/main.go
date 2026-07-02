@@ -15,6 +15,7 @@ import (
 	"relay/internal/api"
 	"relay/internal/db"
 	"relay/internal/reaper"
+	"relay/internal/storage"
 	"relay/internal/stream"
 )
 
@@ -54,15 +55,35 @@ func main() {
 
 	streamClient := stream.New(accountID, apiToken)
 
+	// Blob storage backs the assets (VOD) domain. Optional: without it the
+	// asset endpoints return 501 and everything else works.
+	var blobs storage.Store
+	if endpoint := os.Getenv("RELAY_S3_ENDPOINT"); endpoint != "" {
+		s3, err := storage.NewS3(
+			endpoint,
+			os.Getenv("RELAY_S3_REGION"),
+			os.Getenv("RELAY_S3_BUCKET"),
+			os.Getenv("RELAY_S3_ACCESS_KEY_ID"),
+			os.Getenv("RELAY_S3_SECRET_ACCESS_KEY"),
+		)
+		if err != nil {
+			log.Fatalf("storage: %v", err)
+		}
+		blobs = s3
+		log.Printf("assets enabled: s3-compatible storage at %s", endpoint)
+	} else {
+		log.Print("assets disabled: RELAY_S3_ENDPOINT not set")
+	}
+
 	// Session reaper runs in-process alongside the HTTP server.
-	go reaper.New(pool, streamClient).Run(ctx)
+	go reaper.New(pool, streamClient, blobs).Run(ctx)
 
 	addr := os.Getenv("RELAY_API_ADDR")
 	if addr == "" {
 		addr = ":8080"
 	}
 
-	apiServer := api.New(pool, streamClient, jwtSecret, adminToken)
+	apiServer := api.New(pool, streamClient, blobs, jwtSecret, adminToken)
 
 	// One process-wide LISTEN connection fans command notifications out to
 	// edge long-polls, instead of each poll pinning a pool connection.

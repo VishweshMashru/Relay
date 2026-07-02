@@ -16,6 +16,14 @@ import (
 
 const apiBase = "https://api.cloudflare.com/client/v4"
 
+// Provider is the live-streaming seam. Cloudflare Stream is the only backend
+// today; the interface exists so the control plane never depends on it
+// directly and other media planes can slot in per-primitive.
+type Provider interface {
+	Provision(ctx context.Context, name string) (*LiveInput, error)
+	Destroy(ctx context.Context, uid string) error
+}
+
 type Client struct {
 	accountID string
 	apiToken  string
