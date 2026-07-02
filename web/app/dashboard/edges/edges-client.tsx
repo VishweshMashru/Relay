@@ -62,11 +62,16 @@ export function ProvisionEdge() {
       )}
       {error && <p className="text-xs text-red-500">{error}</p>}
       {token && (
-        <div className="w-full">
+        <div className="w-full flex flex-col gap-3">
           <SecretOnce
-            label={`Edge token for ${token.edge_id}`}
+            label="Install on Linux / macOS — run on the machine next to the camera"
+            value={`curl -fsSL https://streamo.in/install.sh | RELAY_EDGE_TOKEN=${token.edge_token} sh`}
+            hint="Installs the agent + ffmpeg and registers a system service. Windows and manual downloads: streamo.in/download"
+          />
+          <SecretOnce
+            label={`Raw edge token (${token.edge_id})`}
             value={token.edge_token}
-            hint="Pass it to the agent as RELAY_EDGE_TOKEN — the installer asks for it."
+            hint="Shown once. Only needed if you install manually instead of using the command above."
           />
         </div>
       )}

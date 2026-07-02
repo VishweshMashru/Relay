@@ -16,6 +16,14 @@ const nextConfig: NextConfig = {
         destination:
           "https://github.com/VishweshMashru/Relay/releases/latest/download/install.ps1",
       },
+      // Direct binary downloads — streamo.in/download/relay-edge-linux-amd64
+      // etc., always the latest release. Asset names match the release
+      // workflow's cross-compile matrix (plus SHA256SUMS).
+      {
+        source: "/download/:asset(relay-edge-[a-z0-9.-]+|SHA256SUMS)",
+        destination:
+          "https://github.com/VishweshMashru/Relay/releases/latest/download/:asset",
+      },
     ];
   },
 };

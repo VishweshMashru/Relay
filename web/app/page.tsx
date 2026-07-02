@@ -50,6 +50,9 @@ function Nav() {
           <Link href="/showcase" className="text-sm px-3 py-1.5 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-50">
             Showcase
           </Link>
+          <Link href="/download" className="hidden md:inline text-sm px-3 py-1.5 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-50">
+            Download
+          </Link>
           <Show when="signed-out">
             <SignInButton mode="modal">
               <button className="text-sm rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-900">
@@ -769,6 +772,7 @@ function Footer() {
           <a href="#pricing" className="hover:text-neutral-900 dark:hover:text-neutral-50">Pricing</a>
           <a href="#faq" className="hover:text-neutral-900 dark:hover:text-neutral-50">FAQ</a>
           <Link href="/showcase" className="hover:text-neutral-900 dark:hover:text-neutral-50">Showcase</Link>
+          <Link href="/download" className="hover:text-neutral-900 dark:hover:text-neutral-50">Download</Link>
           <a href="https://github.com/VishweshMashru/Relay" className="hover:text-neutral-900 dark:hover:text-neutral-50">GitHub</a>
         </div>
       </div>
