@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import {
   Camera, Zap, Shield, Globe, Cpu, Radio, ArrowRight, Server, PlayCircle,
-  Lock, Eye, KeyRound, Fingerprint, Cloud, ShieldCheck, Check,
+  Lock, Eye, KeyRound, Fingerprint, Cloud, Check, Film, Download, Database, Timer,
 } from "lucide-react";
 
 export default function Landing() {
@@ -10,6 +10,7 @@ export default function Landing() {
     <div className="flex flex-1 flex-col bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100">
       <Nav />
       <Hero />
+      <Primitives />
       <Features />
       <HowItWorks />
       <CodeExample />
@@ -17,7 +18,6 @@ export default function Landing() {
       <UseCases />
       <Pricing />
       <FAQ />
-      <SocialProof />
       <CTA />
       <Footer />
     </div>
@@ -29,12 +29,15 @@ function Nav() {
     <nav className="sticky top-0 z-40 backdrop-blur bg-white/70 dark:bg-neutral-950/70 border-b border-neutral-200/60 dark:border-neutral-800/60">
       <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-2 font-mono font-semibold text-lg">
-          <span className="w-6 h-6 rounded-md bg-gradient-to-br from-neutral-900 to-neutral-700 dark:from-neutral-100 dark:to-neutral-400 flex items-center justify-center">
-            <Radio className="w-3.5 h-3.5 text-white dark:text-neutral-900" />
+          <span className="w-6 h-6 rounded-md bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
+            <Radio className="w-3.5 h-3.5 text-white" />
           </span>
           streamo
         </Link>
         <div className="flex items-center gap-1 md:gap-3">
+          <a href="#primitives" className="hidden md:inline text-sm px-3 py-1.5 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-50">
+            Product
+          </a>
           <a href="#how" className="hidden md:inline text-sm px-3 py-1.5 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-50">
             How it works
           </a>
@@ -73,87 +76,231 @@ function Nav() {
 
 function Hero() {
   return (
-    <section className="relative overflow-hidden">
+    <section className="relative overflow-hidden bg-neutral-950 text-neutral-100">
       <div
-        className="absolute inset-0 opacity-[0.04] dark:opacity-[0.06]"
+        className="absolute inset-0 opacity-[0.07]"
         style={{
           backgroundImage:
             "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
+          backgroundSize: "44px 44px",
         }}
       />
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "radial-gradient(ellipse 60% 40% at 50% 0%, rgba(34,197,94,0.08), transparent 60%)",
+            "radial-gradient(ellipse 55% 55% at 75% 20%, rgba(16,185,129,0.14), transparent 65%), radial-gradient(ellipse 40% 40% at 10% 90%, rgba(16,185,129,0.06), transparent 60%)",
         }}
       />
-      <div className="relative max-w-6xl mx-auto px-6 py-24 md:py-32 flex flex-col items-center text-center gap-8">
-        <span className="inline-flex items-center gap-2 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 px-3 py-1 text-xs">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          Now in beta — sign up for early access
-        </span>
-        <h1 className="text-4xl md:text-6xl font-medium tracking-tight leading-[1.05] max-w-4xl">
-          Video infrastructure for apps that
-          <br />
-          <span className="bg-gradient-to-br from-neutral-900 via-neutral-500 to-neutral-900 dark:from-neutral-100 dark:via-neutral-400 dark:to-neutral-100 bg-clip-text text-transparent">
-            watch the physical world.
+      <div className="relative max-w-6xl mx-auto px-6 py-20 md:py-28 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+        <div className="flex flex-col gap-7">
+          <span className="inline-flex self-start items-center gap-2 rounded-full border border-neutral-800 bg-neutral-900/70 px-3 py-1 text-xs text-neutral-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Now in beta — free while we build with you
           </span>
-        </h1>
-        <p className="text-lg md:text-xl text-neutral-600 dark:text-neutral-400 max-w-2xl leading-relaxed">
-          Stream any camera, from anywhere, on demand — even from behind NAT, corporate
-          firewalls, or a factory floor. One API call, one edge agent, pay only for what your
-          users actually watch.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 mt-2">
-          <Show when="signed-out">
-            <SignUpButton mode="modal">
-              <button className="h-12 px-6 rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-base font-medium hover:opacity-90 inline-flex items-center gap-1.5">
-                Get an API key
+          <h1 className="text-4xl md:text-6xl font-medium tracking-tight leading-[1.04]">
+            The video layer
+            <br />
+            for your app.
+          </h1>
+          <p className="text-lg md:text-xl text-neutral-400 max-w-xl leading-relaxed">
+            Live-stream any camera — even behind NAT and firewalls — and store, fetch, and
+            share clips. Two primitives, one API key. No RTMP servers, no ffmpeg, no
+            presigned-URL plumbing.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Show when="signed-out">
+              <SignUpButton mode="modal">
+                <button className="h-12 px-6 rounded-md bg-emerald-500 text-neutral-950 text-base font-medium hover:bg-emerald-400 inline-flex items-center justify-center gap-1.5">
+                  Get an API key
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </SignUpButton>
+            </Show>
+            <Show when="signed-in">
+              <Link href="/dashboard" className="h-12 px-6 rounded-md bg-emerald-500 text-neutral-950 text-base font-medium hover:bg-emerald-400 inline-flex items-center justify-center gap-1.5">
+                Open dashboard
                 <ArrowRight className="w-4 h-4" />
-              </button>
-            </SignUpButton>
-          </Show>
-          <Show when="signed-in">
-            <Link href="/dashboard" className="h-12 px-6 rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 text-base font-medium inline-flex items-center gap-1.5">
-              Open dashboard
-              <ArrowRight className="w-4 h-4" />
+              </Link>
+            </Show>
+            <Link href="/showcase" className="h-12 px-6 rounded-md border border-neutral-700 text-base font-medium inline-flex items-center justify-center hover:bg-neutral-900">
+              See it live
             </Link>
-          </Show>
-          <Link href="/showcase" className="h-12 px-6 rounded-md border border-neutral-300 dark:border-neutral-700 text-base font-medium inline-flex items-center hover:bg-neutral-50 dark:hover:bg-neutral-900">
-            See it live
-          </Link>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-neutral-500">
+            <TickerItem>Live HLS in two calls</TickerItem>
+            <TickerItem>Clips with retention TTLs</TickerItem>
+            <TickerItem>Outbound HTTPS only</TickerItem>
+            <TickerItem>Signed playback</TickerItem>
+          </div>
         </div>
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-neutral-500">
-          <Item>H.264 / H.265</Item>
-          <Item>HLS + WebRTC</Item>
-          <Item>Outbound HTTPS only</Item>
-          <Item>No public IP required</Item>
-          <Item>Per-minute pricing</Item>
-        </div>
+        <HeroMock />
       </div>
     </section>
   );
 }
 
-function Item({ children }: { children: React.ReactNode }) {
+function TickerItem({ children }: { children: React.ReactNode }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="w-1 h-1 rounded-full bg-neutral-400" />
+      <span className="w-1 h-1 rounded-full bg-emerald-500/70" />
       {children}
     </span>
+  );
+}
+
+function HeroMock() {
+  return (
+    <div className="relative flex flex-col gap-4">
+      {/* API call */}
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900/80 backdrop-blur overflow-hidden shadow-2xl shadow-black/40">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-800">
+          <span className="text-[11px] font-mono text-neutral-400">POST /v1/sessions</span>
+          <span className="text-[11px] font-mono text-emerald-400">200 OK · 312ms</span>
+        </div>
+        <pre className="p-4 text-[12.5px] leading-6 font-mono text-neutral-300 overflow-x-auto">
+{`{
+  "id": "0f6b…",
+  "status": "pending",`}
+          {"\n"}
+          <span className="text-emerald-400">{`  "viewer_url": "https://…/manifest/video.m3u8",`}</span>
+          {"\n"}
+          <span className="text-emerald-400">{`  "viewer_token": "eyJhbGciOi…",`}</span>
+          {`
+  "expires_at": "…T14:32:09Z"
+}`}
+        </pre>
+      </div>
+
+      {/* Player */}
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 overflow-hidden shadow-2xl shadow-black/40">
+        <div className="aspect-video relative bg-gradient-to-br from-neutral-900 via-neutral-950 to-neutral-900 flex items-center justify-center">
+          <div
+            className="absolute inset-0 opacity-30"
+            style={{
+              background:
+                "radial-gradient(ellipse 70% 60% at 50% 40%, rgba(16,185,129,0.15), transparent 70%)",
+            }}
+          />
+          <PlayCircle className="w-12 h-12 text-neutral-600" />
+          <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded bg-black/60 px-2 py-0.5 text-[11px] font-mono text-white">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            LIVE
+          </span>
+          <span className="absolute bottom-3 left-3 text-[11px] font-mono text-neutral-400">
+            loading-dock · factory-a
+          </span>
+        </div>
+      </div>
+
+      {/* Clip row */}
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900/80 px-4 py-3 flex items-center gap-3">
+        <span className="w-8 h-8 rounded-md bg-neutral-800 flex items-center justify-center shrink-0">
+          <Film className="w-4 h-4 text-emerald-400" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-mono text-neutral-300 truncate">intrusion-2031.mp4 · 14s · ready</div>
+          <div className="text-[11px] text-neutral-500">clip stored · expires in 30d</div>
+        </div>
+        <span className="inline-flex items-center gap-1 text-[11px] font-mono text-neutral-400 border border-neutral-700 rounded px-2 py-1">
+          <Download className="w-3 h-3" />
+          download_url
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Primitives() {
+  return (
+    <section id="primitives" className="max-w-6xl mx-auto px-6 py-24">
+      <div className="flex flex-col items-center text-center gap-4 mb-14">
+        <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">Primitives</span>
+        <h2 className="text-3xl md:text-4xl font-medium tracking-tight max-w-2xl">
+          Two primitives cover most of video.
+        </h2>
+        <p className="text-neutral-600 dark:text-neutral-400 max-w-xl mt-2">
+          Live when someone needs to see it now. Clips when something happened and you need
+          to keep it, show it, or send it. Same key, same project, same API.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-8 flex flex-col gap-5 bg-white dark:bg-neutral-950">
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <Radio className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="text-lg font-medium">Live sessions</div>
+              <div className="text-xs text-neutral-500">on-demand streaming from private networks</div>
+            </div>
+          </div>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            Mint a session and the edge agent opens the camera's RTSP feed, pushes it to the
+            global CDN, and hands your viewer a tokenized HLS URL. Stream starts when they
+            arrive, stops when they leave — you never pay for an unwatched camera.
+          </p>
+          <div className="flex flex-col gap-1.5 font-mono text-xs text-neutral-600 dark:text-neutral-400">
+            <EndpointRow method="POST" path="/v1/sessions" note="→ viewer_url + viewer_token" />
+            <EndpointRow method="GET" path="/v1/sessions/:id" note="poll status, refresh playback" />
+            <EndpointRow method="DELETE" path="/v1/sessions/:id" note="end early; heartbeats auto-reap" />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-8 flex flex-col gap-5 bg-white dark:bg-neutral-950">
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <Film className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="text-lg font-medium">Clips</div>
+              <div className="text-xs text-neutral-500">store, fetch, share, expire</div>
+            </div>
+          </div>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            Upload event clips straight from the edge to storage — bytes never transit our
+            API. Fetch playback and download URLs on demand, link clips to cameras and
+            sessions, and set a retention TTL so old footage deletes itself.
+          </p>
+          <div className="flex flex-col gap-1.5 font-mono text-xs text-neutral-600 dark:text-neutral-400">
+            <EndpointRow method="POST" path="/v1/assets" note="→ presigned upload_url" />
+            <EndpointRow method="GET" path="/v1/assets/:id" note="→ playback_url + download_url" />
+            <EndpointRow method="GET" path="/v1/assets?camera_id=" note="list, filter, paginate" />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 px-6 py-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-neutral-500">
+        <span className="text-xs font-mono uppercase tracking-widest">On the roadmap</span>
+        <span className="inline-flex items-center gap-1.5"><Timer className="w-3.5 h-3.5" /> Record-from-live</span>
+        <span className="inline-flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> Sub-second WebRTC</span>
+        <span className="inline-flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> Event webhooks</span>
+      </div>
+    </section>
+  );
+}
+
+function EndpointRow({ method, path, note }: { method: string; path: string; note: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md bg-neutral-50 dark:bg-neutral-900 px-3 py-2 overflow-x-auto whitespace-nowrap">
+      <span className={method === "GET" ? "text-sky-600 dark:text-sky-400" : method === "DELETE" ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}>
+        {method}
+      </span>
+      <span className="text-neutral-800 dark:text-neutral-200">{path}</span>
+      <span className="text-neutral-400 dark:text-neutral-500">{note}</span>
+    </div>
   );
 }
 
 function Features() {
   const features = [
     { icon: Shield, title: "No public IP required", body: "Your camera stays on its LAN. The edge agent connects out via HTTPS — nothing to expose, nothing to forward, nothing to firewall." },
-    { icon: Zap, title: "On-demand, pay-per-minute", body: "Streams start when a viewer asks and stop the moment they leave. You never pay for cameras that nobody is watching." },
-    { icon: Camera, title: "Any camera, any DVR", body: "Hikvision, Dahua, Reolink, iPhone RTSP apps, drones, medical devices, IP cams. If it speaks RTSP or RTMP, we ingest it." },
-    { icon: Globe, title: "Global edge delivery", body: "Viewers connect through Cloudflare's 300+ point CDN. Sub-second WebRTC available for real-time use cases." },
-    { icon: Cpu, title: "Built for AI + vision", body: "First-class metadata, event timestamps, and webhooks. Bring your detection models — we handle the plumbing." },
-    { icon: Radio, title: "One binary, any platform", body: "Edge agent cross-compiles to Windows, Linux, macOS, ARM. Drop it on a mini-PC, a Synology, a factory PC. It just works." },
+    { icon: Zap, title: "On-demand, pay-per-minute", body: "Streams start when a viewer asks and stop the moment they leave. Idle cameras cost you nothing." },
+    { icon: Camera, title: "Any camera, any DVR", body: "Hikvision, Dahua, Reolink, iPhone RTSP apps, drones, IP cams. If it speaks RTSP, the agent ingests it — H.265 included." },
+    { icon: Globe, title: "Global edge delivery", body: "Viewers pull from Cloudflare's 300+ point CDN, not from your camera's uplink. One stream in, any number of viewers out." },
+    { icon: Database, title: "Storage you control", body: "Clips live in S3-compatible storage with per-asset retention TTLs. Keep evidence forever, let routine footage expire." },
+    { icon: Radio, title: "One binary, any platform", body: "Edge agent cross-compiles to Windows, Linux, macOS, ARM. One-line installer registers it as a service. It just works." },
   ];
   return (
     <section className="max-w-6xl mx-auto px-6 py-24 border-t border-neutral-200 dark:border-neutral-800">
@@ -167,7 +314,7 @@ function Features() {
         {features.map((f) => {
           const Icon = f.icon;
           return (
-            <div key={f.title} className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-6 flex flex-col gap-3 hover:border-neutral-400 dark:hover:border-neutral-600 transition-colors bg-white dark:bg-neutral-950">
+            <div key={f.title} className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-6 flex flex-col gap-3 hover:border-emerald-500/50 transition-colors bg-white dark:bg-neutral-950">
               <span className="w-9 h-9 rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
                 <Icon className="w-4 h-4" />
               </span>
@@ -187,21 +334,21 @@ function HowItWorks() {
       n: "01",
       icon: Server,
       title: "Install the agent",
-      body: "One command on any Windows, Linux or Mac machine that can reach your camera on its LAN. Runs as a background service, outbound HTTPS only.",
+      body: "One command on any machine that can reach your camera on its LAN. Runs as a background service, outbound HTTPS only, self-heals on camera drops.",
       example: "curl -fsSL https://streamo.in/install.sh | sh",
     },
     {
       n: "02",
       icon: Camera,
       title: "Register cameras",
-      body: "Register each camera via our API. RTSP URLs and passwords stay on the edge — they never travel to Streamo's cloud.",
+      body: "Register each camera via API or dashboard. RTSP URLs and passwords stay on the edge — they never travel to Streamo's cloud.",
       example: "POST /v1/edges/{id}/cameras",
     },
     {
       n: "03",
       icon: PlayCircle,
-      title: "Watch on demand",
-      body: "Mint a viewer session with one API call. Stream starts the moment the viewer opens the page and stops when they close it.",
+      title: "Stream & store",
+      body: "Mint a live session, or push a clip to storage. Embed the returned URL — playback is tokenized and dies with the session.",
       example: "POST /v1/sessions → { viewer_url }",
     },
   ];
@@ -210,10 +357,10 @@ function HowItWorks() {
       <div className="flex flex-col items-center text-center gap-4 mb-14">
         <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">How it works</span>
         <h2 className="text-3xl md:text-4xl font-medium tracking-tight max-w-2xl">
-          Three steps from private camera to live viewer.
+          Three steps from private camera to production video.
         </h2>
         <p className="text-neutral-600 dark:text-neutral-400 max-w-xl mt-2">
-          No RTMP servers, no NAT holepunching, no CDN config. You handle the API. We handle
+          No RTMP servers, no NAT holepunching, no CDN config. You call the API. We handle
           the rest.
         </p>
       </div>
@@ -242,20 +389,23 @@ function HowItWorks() {
       <div className="mt-14 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-8 md:p-12">
         <div className="text-xs font-mono uppercase tracking-widest text-neutral-500 mb-4">Architecture</div>
         <pre className="text-xs md:text-sm font-mono text-neutral-700 dark:text-neutral-300 leading-relaxed overflow-x-auto">
-{`  CUSTOMER NETWORK                    STREAMO CLOUD             VIEWER
-  ────────────────                    ─────────────             ──────
+{`  CUSTOMER NETWORK                STREAMO CLOUD                  YOUR APP
+  ────────────────                ─────────────                  ────────
 
-  ┌────────┐   RTSP    ┌──────────┐   HTTPS    ┌──────────┐
-  │ Camera ├──────────▶│ Edge     ├───────────▶│ Control  │
-  └────────┘  (LAN)    │ agent    │  (out only)│ plane    │
-                       └────┬─────┘            └────┬─────┘
-                            │                       │
-                            │ RTMPS                 │ signed URL
-                            ▼                       ▼
-                       ┌──────────────────────────────────┐
-                       │ Cloudflare Stream global CDN     │──▶ HLS
-                       └──────────────────────────────────┘    /WebRTC`}
+  ┌────────┐  RTSP   ┌────────┐   HTTPS    ┌───────────┐  REST   ┌─────────┐
+  │ Camera ├────────▶│ Edge   ├───────────▶│ Control   │◀────────┤ Backend │
+  └────────┘  (LAN)  │ agent  │ (out only) │ plane     │  rk_…   └────┬────┘
+                     └──┬──┬──┘            └───────────┘              │
+                 live │     │ clips                              embeds URL
+                RTMPS ▼     ▼ presigned PUT                           ▼
+              ┌───────────┐ ┌──────────────┐   tokenized HLS   ┌─────────┐
+              │ Global CDN│ │ Blob storage │──────────────────▶│ Viewer  │
+              └───────────┘ │ (R2/S3, TTL) │   signed MP4      └─────────┘
+                            └──────────────┘`}
         </pre>
+        <p className="mt-4 text-xs text-neutral-500">
+          Video never transits the control plane — live goes edge → CDN, clips go edge → storage.
+        </p>
       </div>
     </section>
   );
@@ -266,18 +416,18 @@ function CodeExample() {
     <section className="max-w-6xl mx-auto px-6 py-24 border-t border-neutral-200 dark:border-neutral-800">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 items-center">
         <div className="flex flex-col gap-5">
-          <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">Two API calls</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">Developer experience</span>
           <h2 className="text-3xl md:text-4xl font-medium tracking-tight leading-tight">
-            Ship live video without becoming a video company.
+            Ship video without becoming a video company.
           </h2>
           <p className="text-lg text-neutral-600 dark:text-neutral-400 leading-relaxed">
-            No RTMP pipelines, no ffmpeg, no NAT-traversal, no CDN config, no signed URLs
-            to hand-roll. Register a camera, mint a session, embed the URL.
+            A clean REST API over the whole mess — RTMP pipelines, ffmpeg flags, NAT
+            traversal, CDN config, signed URLs. Create a session, embed the URL, done.
           </p>
           <div className="flex flex-col gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-            <Bullet>Auth-scoped API keys with per-project isolation</Bullet>
-            <Bullet>Signed playback URLs with short TTL</Bullet>
-            <Bullet>Node, Python, and Go SDKs</Bullet>
+            <Bullet>Project-scoped API keys, hashed at rest, revocable from the dashboard</Bullet>
+            <Bullet>Per-session viewer tokens — a leaked link dies with the session</Bullet>
+            <Bullet>Clip retention TTLs — footage expires itself</Bullet>
           </div>
         </div>
         <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-950 shadow-2xl shadow-neutral-900/10">
@@ -285,7 +435,7 @@ function CodeExample() {
             <span className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
             <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/70" />
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/70" />
-            <span className="ml-3 text-[11px] font-mono text-neutral-400">app.tsx</span>
+            <span className="ml-3 text-[11px] font-mono text-neutral-400">backend.ts</span>
           </div>
           <pre className="p-5 text-[13px] leading-6 font-mono text-neutral-200 overflow-x-auto">
             <Code />
@@ -299,23 +449,25 @@ function CodeExample() {
 function Code() {
   return (
     <>
-      <span className="text-neutral-500">{`// 1. From your backend`}</span>{`\n`}
-      <span className="text-purple-300">const</span> session ={" "}
-      <span className="text-purple-300">await</span>{" "}
-      <span className="text-blue-300">streamo</span>.<span className="text-blue-300">sessions</span>.<span className="text-emerald-300">create</span>({`{`}{`\n`}
-      {`  `}cameraId: <span className="text-orange-300">{'"cam_5f92..."'}</span>,{`\n`}
-      {`  `}ttlSeconds: <span className="text-orange-300">600</span>,{`\n`}
-      {`}`});{`\n\n`}
-      <span className="text-neutral-500">{`// 2. In your frontend`}</span>{`\n`}
-      <span className="text-pink-300">{`<Player`}</span> <span className="text-blue-300">src</span>=<span className="text-orange-300">{`{session.viewerUrl}`}</span> <span className="text-pink-300">{`/>`}</span>{`\n`}
+      <span className="text-neutral-500">{`// Go live`}</span>{`\n`}
+      <span className="text-purple-300">const</span> session = <span className="text-purple-300">await</span> streamo(<span className="text-orange-300">{'"/v1/sessions"'}</span>, {`{`}{`\n`}
+      {`  `}camera_id: <span className="text-orange-300">{'"cam_5f92…"'}</span>, ttl_seconds: <span className="text-orange-300">600</span>,{`\n`}
+      {`}`});{`\n`}
+      <span className="text-neutral-500">{`// → embed session.viewer_url in your player`}</span>{`\n\n`}
+      <span className="text-neutral-500">{`// Keep a clip`}</span>{`\n`}
+      <span className="text-purple-300">const</span> clip = <span className="text-purple-300">await</span> streamo(<span className="text-orange-300">{'"/v1/assets"'}</span>, {`{`}{`\n`}
+      {`  `}camera_id: <span className="text-orange-300">{'"cam_5f92…"'}</span>, ttl_seconds: <span className="text-orange-300">2592000</span>,{`\n`}
+      {`}`});{`\n`}
+      <span className="text-neutral-500">{`// → PUT the mp4 to clip.upload_url, then share`}</span>{`\n`}
+      <span className="text-neutral-500">{`//   clip.playback_url / clip.download_url`}</span>{`\n`}
     </>
   );
 }
 
 function Bullet({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className="w-1 h-1 rounded-full bg-emerald-500" />
+    <span className="inline-flex items-start gap-2">
+      <span className="w-1 h-1 mt-2 rounded-full bg-emerald-500 shrink-0" />
       {children}
     </span>
   );
@@ -324,11 +476,11 @@ function Bullet({ children }: { children: React.ReactNode }) {
 function Security() {
   const items = [
     { icon: Shield, title: "No public IPs, ever", body: "Edge agent is outbound-only. Cameras never touch the internet." },
-    { icon: Lock, title: "Credentials stay local", body: "RTSP passwords live on the edge agent. They're never sent to us." },
-    { icon: KeyRound, title: "Signed playback URLs", body: "Every viewer session gets a short-lived signed URL. Sharing after expiry doesn't work." },
-    { icon: Cloud, title: "TLS everywhere", body: "Agent ↔ cloud, cloud ↔ viewer, edge ↔ Cloudflare — all encrypted in transit." },
+    { icon: Lock, title: "Credentials stay local", body: "RTSP passwords live on the edge agent in cameras.json. They're never sent to us." },
+    { icon: KeyRound, title: "Tokenized playback", body: "Every viewer gets a per-session token, and stream URLs are signed. Sharing after expiry doesn't work." },
     { icon: Fingerprint, title: "Multi-tenant isolation", body: "Every query is scoped to your project. Cross-tenant access is architecturally impossible." },
-    { icon: Eye, title: "No storage by default", body: "Video isn't recorded unless you turn it on per-session. When you do, you control retention." },
+    { icon: Eye, title: "Revocation that works", body: "Rotate any API key or any single edge's token from the dashboard — without touching the rest of your fleet." },
+    { icon: Cloud, title: "Retention by design", body: "Live video isn't stored. Clips keep exactly as long as the TTL you set — then delete themselves." },
   ];
   return (
     <section className="max-w-6xl mx-auto px-6 py-24 border-t border-neutral-200 dark:border-neutral-800">
@@ -364,14 +516,14 @@ function Security() {
 
 function UseCases() {
   const cases = [
-    { label: "Factory monitoring", note: "with defect detection" },
-    { label: "Retail analytics", note: "person-counting, queue AI" },
+    { label: "AI CCTV & site intelligence", note: "live view + event clips" },
+    { label: "Factory monitoring", note: "defect detection feeds" },
     { label: "Construction sites", note: "progress AI, PPE detection" },
+    { label: "Retail analytics", note: "person-counting, queue AI" },
     { label: "Warehouse & logistics", note: "pallet tracking, safety" },
     { label: "Smart buildings", note: "occupancy, visitor logs" },
-    { label: "Fleet & dashcams", note: "incident review" },
     { label: "Drone livestreams", note: "on-demand ops feeds" },
-    { label: "Body-worn cameras", note: "police, delivery, insurance" },
+    { label: "Incident & evidence", note: "clips with retention" },
   ];
   return (
     <section className="max-w-6xl mx-auto px-6 py-24 border-t border-neutral-200 dark:border-neutral-800">
@@ -404,8 +556,8 @@ function Pricing() {
       href: "#",
       features: [
         "100 viewer-minutes / month",
+        "1 GB clip storage",
         "1 edge, unlimited cameras",
-        "HLS playback",
         "Community support",
       ],
     },
@@ -419,8 +571,8 @@ function Pricing() {
       features: [
         "No monthly minimum",
         "Unlimited edges + cameras",
-        "HLS + WebRTC",
-        "Recordings + signed downloads",
+        "Clip storage at $0.02 / GB-month",
+        "Signed playback + downloads",
         "Email support",
         "Volume discount at 100K+ min/mo",
       ],
@@ -434,8 +586,8 @@ function Pricing() {
       href: "mailto:hello@streamo.in",
       features: [
         "Dedicated infra + SLA",
+        "BYO storage bucket",
         "SSO, SCIM, audit logs",
-        "HIPAA / SOC 2",
         "BYO-cloud deployment",
         "Priority + phone support",
       ],
@@ -446,11 +598,11 @@ function Pricing() {
       <div className="flex flex-col items-center text-center gap-4 mb-14">
         <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">Pricing</span>
         <h2 className="text-3xl md:text-4xl font-medium tracking-tight max-w-2xl">
-          Simple, transparent, per-minute.
+          Simple, transparent, usage-based.
         </h2>
         <p className="text-neutral-600 dark:text-neutral-400 max-w-2xl mt-2">
-          No seats, no cameras-fee, no monthly commit. You pay only when someone is watching.
-          Cloudflare Stream delivery cost is passed through at cost.
+          No seats, no per-camera fee, no monthly commit. Live is billed by watched minutes,
+          clips by stored gigabytes. Idle infrastructure costs you nothing.
         </p>
       </div>
 
@@ -460,7 +612,7 @@ function Pricing() {
             key={t.name}
             className={`rounded-2xl border p-6 md:p-8 flex flex-col gap-6 bg-white dark:bg-neutral-950 ${
               t.tag
-                ? "border-neutral-900 dark:border-neutral-100 shadow-lg shadow-neutral-900/5"
+                ? "border-emerald-500/60 shadow-lg shadow-emerald-500/5"
                 : "border-neutral-200 dark:border-neutral-800"
             }`}
           >
@@ -507,23 +659,27 @@ function FAQ() {
   const qs = [
     {
       q: "Does it work with my existing Hikvision / Dahua / CP Plus DVR?",
-      a: "Yes. If your DVR speaks RTSP (they all do), the edge agent handles the codec, timestamp and auth quirks each vendor introduces. No firmware changes to the DVR.",
+      a: "Yes. If your DVR speaks RTSP (they all do), the edge agent handles the codec, timestamp and auth quirks each vendor introduces — including H.265 sources, which it transcodes on the fly. No firmware changes to the DVR.",
     },
     {
       q: "What's the streaming latency?",
-      a: "5–15 seconds via HLS by default — enough for monitoring dashboards. WebRTC gives you sub-second when latency matters — same API, different protocol.",
+      a: "5–15 seconds via HLS — enough for monitoring dashboards and \"show me the camera now\" flows. Sub-second WebRTC is on the roadmap for the use cases that need it.",
     },
     {
       q: "How do you handle privacy?",
-      a: "RTSP credentials and camera IPs never leave the edge agent. Playback URLs are signed and short-lived. Video is not recorded unless you explicitly turn it on. Every query is scoped to your project — cross-tenant reads are architecturally impossible.",
+      a: "RTSP credentials and camera IPs never leave the edge agent. Viewers authenticate with per-session tokens, playback URLs are signed and die with the session, and live video is never stored. Every query is scoped to your project — cross-tenant reads are architecturally impossible.",
     },
     {
-      q: "Can I record and download later?",
-      a: "Yes. Enable recording per-session or per-camera; retention is under your control. Signed MP4 download endpoints for compliance clips, incident review, or evidence.",
+      q: "Can I store and download clips?",
+      a: "Yes — that's the assets API. Upload clips from the edge (or your backend), set a retention TTL per clip, and fetch signed playback or download URLs whenever you need them. Expired clips delete themselves, storage included.",
     },
     {
       q: "How do I integrate this into an existing app?",
-      a: "Two API calls: create a session, embed the returned URL in your <video>. Node, Python and Go SDKs available. Full quickstart at docs.streamo.in.",
+      a: "It's a plain REST API with bearer keys: create a session, embed the returned URL in your <video> tag (hls.js or native Safari HLS). A reference player and a live demo are in the showcase.",
+    },
+    {
+      q: "What happens if the camera or network blips mid-stream?",
+      a: "The edge agent supervises every stream and reconnects with backoff automatically. If a viewer disappears without saying goodbye, heartbeat timeouts end the session server-side so nothing keeps running — or billing — in the background.",
     },
     {
       q: "Do you compete with my customer's DVR or camera vendor?",
@@ -555,43 +711,40 @@ function FAQ() {
   );
 }
 
-function SocialProof() {
-  return (
-    <section className="max-w-6xl mx-auto px-6 py-16 border-t border-neutral-200 dark:border-neutral-800">
-      <p className="text-center text-xs font-mono uppercase tracking-widest text-neutral-500">
-        Building with early design partners
-      </p>
-    </section>
-  );
-}
-
 function CTA() {
   return (
     <section className="max-w-6xl mx-auto px-6 py-24 border-t border-neutral-200 dark:border-neutral-800">
-      <div className="rounded-2xl bg-neutral-900 dark:bg-neutral-100 text-neutral-100 dark:text-neutral-900 p-10 md:p-16 flex flex-col items-center text-center gap-6">
-        <h2 className="text-3xl md:text-4xl font-medium tracking-tight max-w-2xl">
+      <div className="relative overflow-hidden rounded-2xl bg-neutral-950 text-neutral-100 p-10 md:p-16 flex flex-col items-center text-center gap-6">
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(ellipse 60% 60% at 50% 0%, rgba(16,185,129,0.15), transparent 65%)",
+          }}
+        />
+        <h2 className="relative text-3xl md:text-4xl font-medium tracking-tight max-w-2xl">
           Start streaming a camera in fifteen minutes.
         </h2>
-        <p className="text-neutral-400 dark:text-neutral-600 max-w-xl">
-          Free tier includes 100 viewer-minutes per month. No credit card. Pay only when you
-          outgrow it.
+        <p className="relative text-neutral-400 max-w-xl">
+          Free tier includes 100 viewer-minutes and a gigabyte of clips per month. No credit
+          card. Pay only when you outgrow it.
         </p>
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex flex-col sm:flex-row gap-3">
           <Show when="signed-out">
             <SignUpButton mode="modal">
-              <button className="h-12 px-6 rounded-md bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-50 text-base font-medium hover:opacity-90 inline-flex items-center gap-1.5">
+              <button className="h-12 px-6 rounded-md bg-emerald-500 text-neutral-950 text-base font-medium hover:bg-emerald-400 inline-flex items-center gap-1.5">
                 Get an API key
                 <ArrowRight className="w-4 h-4" />
               </button>
             </SignUpButton>
           </Show>
           <Show when="signed-in">
-            <Link href="/dashboard" className="h-12 px-6 rounded-md bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-50 text-base font-medium inline-flex items-center gap-1.5">
+            <Link href="/dashboard" className="h-12 px-6 rounded-md bg-emerald-500 text-neutral-950 text-base font-medium hover:bg-emerald-400 inline-flex items-center gap-1.5">
               Open dashboard
               <ArrowRight className="w-4 h-4" />
             </Link>
           </Show>
-          <Link href="/showcase" className="h-12 px-6 rounded-md border border-neutral-700 dark:border-neutral-400 text-base font-medium inline-flex items-center hover:bg-neutral-800 dark:hover:bg-neutral-200">
+          <Link href="/showcase" className="h-12 px-6 rounded-md border border-neutral-700 text-base font-medium inline-flex items-center hover:bg-neutral-900">
             See the demo
           </Link>
         </div>
@@ -605,11 +758,12 @@ function Footer() {
     <footer className="border-t border-neutral-200 dark:border-neutral-800 mt-auto">
       <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-sm text-neutral-500">
-          <span className="w-5 h-5 rounded-md bg-neutral-900 dark:bg-neutral-100" />
+          <span className="w-5 h-5 rounded-md bg-gradient-to-br from-emerald-500 to-emerald-700" />
           <span className="font-mono font-semibold">streamo</span>
-          <span>· video infrastructure for the physical world</span>
+          <span>· the video layer for the physical world</span>
         </div>
         <div className="flex items-center gap-6 text-sm text-neutral-500">
+          <a href="#primitives" className="hover:text-neutral-900 dark:hover:text-neutral-50">Product</a>
           <a href="#how" className="hover:text-neutral-900 dark:hover:text-neutral-50">How it works</a>
           <a href="#pricing" className="hover:text-neutral-900 dark:hover:text-neutral-50">Pricing</a>
           <a href="#faq" className="hover:text-neutral-900 dark:hover:text-neutral-50">FAQ</a>
