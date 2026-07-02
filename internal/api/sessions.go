@@ -101,6 +101,17 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 	if req.Protocol == "" {
 		req.Protocol = relay.ProtocolHLS
 	}
+	if req.Protocol != relay.ProtocolHLS && req.Protocol != relay.ProtocolWebRTC {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "protocol must be \"hls\" or \"webrtc\""})
+		return
+	}
+	// Sub-second WebRTC needs a WHIP publisher (OBS 30+, GStreamer, robot
+	// stacks). The edge agent pushes RTMPS via ffmpeg, which can't speak WHIP
+	// reliably across installed versions yet — so webrtc is push-only for now.
+	if req.Protocol == relay.ProtocolWebRTC && req.Ingest != relay.IngestPush {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "protocol \"webrtc\" currently requires ingest \"push\""})
+		return
+	}
 
 	ctx := r.Context()
 
@@ -152,12 +163,19 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	expires := now.Add(time.Duration(req.TTLSeconds) * time.Second)
 
+	// WebRTC sessions play via WHEP; HLS sessions via the manifest. Both URL
+	// shapes carry the input UID, so signing works identically.
+	viewerURL := input.PlaybackURL
+	if req.Protocol == relay.ProtocolWebRTC {
+		viewerURL = input.WHEPURL
+	}
+
 	var sess relay.Session
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO sessions(project_id, camera_id, ingest, status, protocol, viewer_url, stream_input_uid, started_at, expires_at)
 		VALUES ($1, NULLIF($2,'')::uuid, $3, 'pending', $4, $5, $6, $7, $8)
 		RETURNING id::text, COALESCE(camera_id::text,''), ingest, status, protocol, COALESCE(viewer_url,''), started_at, expires_at
-	`, projectID, req.CameraID, req.Ingest, req.Protocol, input.PlaybackURL, input.UID, now, expires).Scan(
+	`, projectID, req.CameraID, req.Ingest, req.Protocol, viewerURL, input.UID, now, expires).Scan(
 		&sess.ID, &sess.CameraID, &sess.Ingest, &sess.Status, &sess.Protocol, &sess.ViewerURL, &sess.StartedAt, &sess.ExpiresAt,
 	); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -186,8 +204,11 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 	committed = true
 
 	if req.Ingest == relay.IngestPush {
-		// Returned once — the push URL embeds the stream key.
+		// Returned once — both URLs embed publish secrets.
 		sess.PushURL = input.PushURL
+		if req.Protocol == relay.ProtocolWebRTC {
+			sess.PushURL = input.WHIPURL
+		}
 	}
 
 	// Minted once, returned only here. The customer's backend passes it to

@@ -44,11 +44,15 @@ func New(accountID, apiToken string) *Client {
 
 // LiveInput is what Provision returns. PushURL already includes the stream key
 // so the edge can hand it straight to ffmpeg's output arg. PlaybackURL is the
-// HLS manifest the viewer plays.
+// HLS manifest the viewer plays. WHIPURL/WHEPURL are the WebRTC pair for
+// sub-second sessions: WHIP embeds a secret publish key (treat like PushURL),
+// WHEP contains the input UID and signs like any playback URL.
 type LiveInput struct {
 	UID         string
 	PushURL     string
 	PlaybackURL string
+	WHIPURL     string
+	WHEPURL     string
 }
 
 func (c *Client) Provision(ctx context.Context, name string) (*LiveInput, error) {
@@ -102,6 +106,9 @@ func (c *Client) Provision(ctx context.Context, name string) (*LiveInput, error)
 			// webRTC.url is the WHIP PUBLISH URL — contains a secret publish key.
 			// Do NOT use for playback. webRTCPlayback.url is the WHEP PLAY URL
 			// and contains the input UID — this is what we derive HLS from.
+			WebRTC struct {
+				URL string `json:"url"`
+			} `json:"webRTC"`
 			WebRTCPlayback struct {
 				URL string `json:"url"`
 			} `json:"webRTCPlayback"`
@@ -122,6 +129,8 @@ func (c *Client) Provision(ctx context.Context, name string) (*LiveInput, error)
 		UID:         out.Result.UID,
 		PushURL:     out.Result.RTMPS.URL + out.Result.RTMPS.StreamKey,
 		PlaybackURL: playbackURL(out.Result.WebRTCPlayback.URL, out.Result.UID),
+		WHIPURL:     out.Result.WebRTC.URL,
+		WHEPURL:     out.Result.WebRTCPlayback.URL,
 	}, nil
 }
 

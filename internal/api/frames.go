@@ -39,12 +39,15 @@ func (s *Server) sessionFrame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The manifest and thumbnail live on the same CF path; swap the tail.
-	thumbURL := strings.Replace(viewerURL, "/manifest/video.m3u8", "/thumbnails/thumbnail.jpg", 1)
-	if thumbURL == viewerURL {
+	// Thumbnails live at <cf-host>/<uid>/thumbnails/thumbnail.jpg regardless
+	// of playback protocol (HLS manifest or WHEP), so build from the host.
+	const marker = ".cloudflarestream.com"
+	idx := strings.Index(viewerURL, marker)
+	if idx < 0 || streamUID == "" {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "no thumbnail source for this session"})
 		return
 	}
+	thumbURL := viewerURL[:idx+len(marker)] + "/" + streamUID + "/thumbnails/thumbnail.jpg"
 	if h := r.URL.Query().Get("height"); h != "" {
 		if n, err := strconv.Atoi(h); err == nil && n > 0 && n <= 2160 {
 			thumbURL += "?height=" + strconv.Itoa(n)

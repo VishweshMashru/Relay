@@ -238,12 +238,13 @@ function Primitives() {
           </div>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
             Mint a session and the edge agent opens the camera's RTSP feed, pushes it to the
-            global CDN, and hands your viewer a tokenized HLS URL. Stream starts when they
-            arrive, stops when they leave — you never pay for an unwatched camera.
+            global CDN, and hands your viewer a tokenized HLS URL. No agent? Push directly —
+            a drone controller or OBS streams RTMPS to the returned URL, or WHIP for
+            sub-second WebRTC. Streams stop when viewers leave; unwatched cameras cost nothing.
           </p>
           <div className="flex flex-col gap-1.5 font-mono text-xs text-neutral-600 dark:text-neutral-400">
-            <EndpointRow method="POST" path="/v1/sessions" note="→ viewer_url + viewer_token" />
-            <EndpointRow method="GET" path="/v1/sessions/:id" note="poll status, refresh playback" />
+            <EndpointRow method="POST" path="/v1/sessions" note="→ viewer_url · push_url · webrtc" />
+            <EndpointRow method="GET" path="/v1/sessions/:id/frame.jpg" note="current frame — for AI agents" />
             <EndpointRow method="DELETE" path="/v1/sessions/:id" note="end early; heartbeats auto-reap" />
           </div>
         </div>
@@ -274,7 +275,7 @@ function Primitives() {
       <div className="mt-4 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 px-6 py-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-neutral-500">
         <span className="text-xs font-mono uppercase tracking-widest">On the roadmap</span>
         <span className="inline-flex items-center gap-1.5"><Timer className="w-3.5 h-3.5" /> Record-from-live</span>
-        <span className="inline-flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> Sub-second WebRTC</span>
+        <span className="inline-flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> WebRTC for edge ingest</span>
         <span className="inline-flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> Event webhooks</span>
       </div>
     </section>
@@ -663,7 +664,7 @@ function FAQ() {
     },
     {
       q: "What's the streaming latency?",
-      a: "5–15 seconds via HLS — enough for monitoring dashboards and \"show me the camera now\" flows. Sub-second WebRTC is on the roadmap for the use cases that need it.",
+      a: "5–15 seconds via HLS — enough for monitoring dashboards and \"show me the camera now\" flows. Push-ingest sessions can use protocol:\"webrtc\" (WHIP in, WHEP out) for sub-second latency; WebRTC for edge-agent ingest is on the roadmap.",
     },
     {
       q: "How do you handle privacy?",

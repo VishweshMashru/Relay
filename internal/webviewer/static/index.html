@@ -37,6 +37,39 @@
         errBox.textContent = msg;
       }
 
+      // WHEP playback for sub-second webrtc sessions: POST our SDP offer to
+      // the play URL, apply the answer, render the incoming track.
+      async function playWHEP(url) {
+        const pc = new RTCPeerConnection();
+        pc.addTransceiver("video", { direction: "recvonly" });
+        pc.addTransceiver("audio", { direction: "recvonly" });
+        pc.ontrack = (e) => {
+          if (e.track.kind === "video") {
+            video.srcObject = e.streams[0];
+            status.textContent = "playing (webrtc)";
+          }
+        };
+        pc.onconnectionstatechange = () => {
+          if (pc.connectionState === "failed") status.textContent = "webrtc connection failed";
+        };
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        // Non-trickle: wait for ICE gathering so the offer is complete.
+        await new Promise((resolve) => {
+          if (pc.iceGatheringState === "complete") return resolve();
+          pc.addEventListener("icegatheringstatechange", () => {
+            if (pc.iceGatheringState === "complete") resolve();
+          });
+        });
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/sdp" },
+          body: pc.localDescription.sdp,
+        });
+        if (!resp.ok) return fail(`WHEP negotiation failed: ${resp.status}`);
+        await pc.setRemoteDescription({ type: "answer", sdp: await resp.text() });
+      }
+
       async function load() {
         if (!sessionID) return fail("Missing ?session=<id> in URL.");
         if (!token) return fail("Missing ?token=<viewer_token> in URL.");
@@ -46,6 +79,10 @@
         const url = data.viewer_url;
         if (!url) return fail("Session has no viewer URL yet.");
         status.textContent = "loading stream…";
+
+        if (data.protocol === "webrtc") {
+          return playWHEP(url);
+        }
 
         if (Hls.isSupported()) {
           // Cloudflare Stream Live can take 30–60s after RTMPS ingest starts

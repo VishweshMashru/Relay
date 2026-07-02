@@ -20,7 +20,8 @@ storage with retention TTLs.
 ```
 POST   /v1/sessions                     start a live session
                                           ingest:"edge" → agent opens the camera's RTSP
-                                          ingest:"push" → returns an RTMPS push_url (drone/OBS, no agent)
+                                          ingest:"push" → returns a push_url (drone/OBS, no agent)
+                                          protocol:"webrtc" (push only) → WHIP in, WHEP out, sub-second
 GET    /v1/sessions/{id}                playback URL (viewer token or API key)
 GET    /v1/sessions/{id}/frame.jpg      current frame as JPEG — for AI agents
 DELETE /v1/sessions/{id}                end early; heartbeats + reaper handle the rest
