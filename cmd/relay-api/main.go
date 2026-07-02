@@ -97,7 +97,12 @@ func main() {
 		addr = ":8080"
 	}
 
-	apiServer := api.New(pool, streamClient, blobs, jwtSecret, adminToken)
+	webhookSecret := []byte(os.Getenv("RELAY_CF_WEBHOOK_SECRET"))
+	if len(webhookSecret) == 0 {
+		log.Print("cloudflare webhooks disabled: RELAY_CF_WEBHOOK_SECRET not set")
+	}
+
+	apiServer := api.New(pool, streamClient, blobs, jwtSecret, adminToken, webhookSecret)
 
 	// One process-wide LISTEN connection fans command notifications out to
 	// edge long-polls, instead of each poll pinning a pool connection.

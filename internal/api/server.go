@@ -16,22 +16,24 @@ import (
 )
 
 type Server struct {
-	pool     *pgxpool.Pool
-	stream   stream.Provider
-	blobs    storage.Store // nil disables the assets domain
-	mw       *auth.Middleware
-	mux      *http.ServeMux
-	dispatch *dispatcher
+	pool          *pgxpool.Pool
+	stream        stream.Provider
+	blobs         storage.Store // nil disables asset uploads
+	webhookSecret []byte        // empty disables /v1/webhooks/cloudflare
+	mw            *auth.Middleware
+	mux           *http.ServeMux
+	dispatch      *dispatcher
 }
 
-func New(pool *pgxpool.Pool, streamProvider stream.Provider, blobs storage.Store, jwtSecret, adminToken []byte) *Server {
+func New(pool *pgxpool.Pool, streamProvider stream.Provider, blobs storage.Store, jwtSecret, adminToken, webhookSecret []byte) *Server {
 	s := &Server{
-		pool:     pool,
-		stream:   streamProvider,
-		blobs:    blobs,
-		mw:       &auth.Middleware{Pool: pool, JWTSecret: jwtSecret, AdminToken: adminToken},
-		mux:      http.NewServeMux(),
-		dispatch: newDispatcher(pool),
+		pool:          pool,
+		stream:        streamProvider,
+		blobs:         blobs,
+		webhookSecret: webhookSecret,
+		mw:            &auth.Middleware{Pool: pool, JWTSecret: jwtSecret, AdminToken: adminToken},
+		mux:           http.NewServeMux(),
+		dispatch:      newDispatcher(pool),
 	}
 	s.routes()
 	return s
@@ -46,6 +48,9 @@ func (s *Server) RunDispatcher(ctx context.Context) { s.dispatch.run(ctx) }
 func (s *Server) routes() {
 	// Public
 	s.mux.HandleFunc("GET /v1/health", s.health)
+
+	// Cloudflare callbacks — authenticated by signature/secret, not bearer.
+	s.mux.HandleFunc("POST /v1/webhooks/cloudflare", s.cfWebhook)
 
 	// Viewer-facing — require the per-session viewer token minted at
 	// createSession (Authorization: Bearer or ?token=).

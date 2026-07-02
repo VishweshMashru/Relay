@@ -82,6 +82,9 @@ func main() {
 		cameraList(ctx, pool, rest[0])
 	case "streamkey create":
 		streamkeyCreate(ctx)
+	case "webhook create":
+		mustArgs(rest, 1, "webhook create <notification_url>")
+		webhookCreate(ctx, rest[0])
 	default:
 		usage()
 		os.Exit(1)
@@ -217,6 +220,25 @@ func streamkeyCreate(ctx context.Context) {
 	fmt.Println("(the PEM is never shown again — store it now)")
 }
 
+// webhookCreate registers the account-wide Stream webhook (video-ready
+// events) pointing at relay-api and prints the signing secret.
+func webhookCreate(ctx context.Context, url string) {
+	accountID, apiToken := os.Getenv("ACCOUNT_ID"), os.Getenv("API_TOKEN")
+	if accountID == "" || apiToken == "" {
+		die("ACCOUNT_ID and API_TOKEN are required (Cloudflare Stream)")
+	}
+	secret, err := stream.New(accountID, apiToken).CreateWebhook(ctx, url)
+	if err != nil {
+		die("create webhook: %v", err)
+	}
+	fmt.Println("Stream webhook registered. Add to relay-api's environment:")
+	fmt.Printf("RELAY_CF_WEBHOOK_SECRET=%s\n", secret)
+	fmt.Println()
+	fmt.Println("For live input connected/disconnected events, also create a")
+	fmt.Println("Notifications webhook destination in the CF dashboard pointing at")
+	fmt.Println("the same URL, using the same value as the destination secret.")
+}
+
 func mustGenAPIKey() (raw, prefix, hash string) {
 	raw, prefix, hash, err := auth.GenerateAPIKey()
 	if err != nil {
@@ -244,5 +266,6 @@ func usage() {
   relay-admin edge    list   [<project_id>]
   relay-admin camera  create <edge_id> <name>
   relay-admin camera  list   <edge_id>
-  relay-admin streamkey create   (needs ACCOUNT_ID + API_TOKEN)`)
+  relay-admin streamkey create   (needs ACCOUNT_ID + API_TOKEN)
+  relay-admin webhook   create <notification_url>`)
 }
