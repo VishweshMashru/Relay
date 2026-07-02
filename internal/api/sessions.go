@@ -99,7 +99,7 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	if _, err := tx.Exec(ctx, "SELECT pg_notify($1, $2)", relay.EdgeChannel(edgeID), cmdID); err != nil {
+	if _, err := tx.Exec(ctx, "SELECT pg_notify($1, $2)", relay.CommandsChannel, edgeID); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -184,7 +184,7 @@ func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	if _, err := tx.Exec(ctx, "SELECT pg_notify($1, $2)", relay.EdgeChannel(edgeID), cmdID); err != nil {
+	if _, err := tx.Exec(ctx, "SELECT pg_notify($1, $2)", relay.CommandsChannel, edgeID); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}

@@ -3,11 +3,10 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"relay/internal/auth"
 	"relay/internal/relay"
@@ -123,6 +122,8 @@ func (s *Server) listCameras(w http.ResponseWriter, r *http.Request) {
 
 // edgeCommands is the long-poll heart of the control plane. Auth middleware
 // puts edge_id in the request context — no more query-param edge IDs.
+// Waiting happens on an in-process dispatcher channel, not a pinned Postgres
+// connection, so thousands of edges can hold polls concurrently.
 func (s *Server) edgeCommands(w http.ResponseWriter, r *http.Request) {
 	edgeID, ok := auth.EdgeFromContext(r.Context())
 	if !ok {
@@ -130,22 +131,13 @@ func (s *Server) edgeCommands(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), longPollTimeout+5*time.Second)
-	defer cancel()
+	ctx := r.Context()
 
-	conn, err := s.pool.Acquire(ctx)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	defer conn.Release()
+	// Subscribe before the first claim so a notify landing mid-claim isn't lost.
+	wakeup, unsubscribe := s.dispatch.subscribe(edgeID)
+	defer unsubscribe()
 
-	if _, err := conn.Exec(ctx, "LISTEN "+relay.EdgeChannel(edgeID)); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-
-	cmds, err := claimCommands(ctx, conn.Conn(), edgeID)
+	cmds, err := claimCommands(ctx, s.pool, edgeID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -155,18 +147,18 @@ func (s *Server) edgeCommands(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	waitCtx, waitCancel := context.WithTimeout(ctx, longPollTimeout)
-	defer waitCancel()
-	if _, err := conn.Conn().WaitForNotification(waitCtx); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			writeJSON(w, http.StatusOK, map[string]any{"commands": []relay.Command{}})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	timer := time.NewTimer(longPollTimeout)
+	defer timer.Stop()
+	select {
+	case <-wakeup:
+	case <-timer.C:
+		writeJSON(w, http.StatusOK, map[string]any{"commands": []relay.Command{}})
+		return
+	case <-ctx.Done():
 		return
 	}
 
-	cmds, err = claimCommands(ctx, conn.Conn(), edgeID)
+	cmds, err = claimCommands(ctx, s.pool, edgeID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -174,13 +166,47 @@ func (s *Server) edgeCommands(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"commands": cmds})
 }
 
-func claimCommands(ctx context.Context, conn *pgx.Conn, edgeID string) ([]relay.Command, error) {
-	rows, err := conn.Query(ctx, `
+// ackCommands lets the edge confirm it executed commands. Claims only take a
+// short lease (see claimCommands); a command that is never acked — response
+// lost in flight, edge crashed mid-dispatch — is redelivered on a later poll.
+func (s *Server) ackCommands(w http.ResponseWriter, r *http.Request) {
+	edgeID, ok := auth.EdgeFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no edge in context"})
+		return
+	}
+	var req struct {
+		IDs []string `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.IDs) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ids is required"})
+		return
+	}
+	if _, err := s.pool.Exec(r.Context(), `
+		UPDATE commands SET acked_at = now()
+		WHERE edge_id = $1 AND id = ANY($2::uuid[]) AND acked_at IS NULL
+	`, edgeID, req.IDs); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// claimCommands hands out unacked commands under a 60s lease. If the edge
+// never acks (lost response, crash), the lease lapses and the command is
+// claimable again on a later poll — at-least-once instead of at-most-once.
+// Commands older than an hour are considered stale and never redelivered;
+// sessions cap at 3600s TTL so nothing meaningful outlives that.
+func claimCommands(ctx context.Context, pool *pgxpool.Pool, edgeID string) ([]relay.Command, error) {
+	rows, err := pool.Query(ctx, `
 		UPDATE commands
-		SET delivered_at = now()
+		SET delivered_at = now(), lease_expires_at = now() + interval '60 seconds'
 		WHERE id IN (
 			SELECT id FROM commands
-			WHERE edge_id = $1 AND delivered_at IS NULL
+			WHERE edge_id = $1
+			  AND acked_at IS NULL
+			  AND (lease_expires_at IS NULL OR lease_expires_at < now())
+			  AND created_at > now() - interval '1 hour'
 			ORDER BY created_at
 			FOR UPDATE SKIP LOCKED
 			LIMIT 20

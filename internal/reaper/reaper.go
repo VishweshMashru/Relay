@@ -108,7 +108,7 @@ func (r *Reaper) sweep(ctx context.Context) (int, error) {
 			continue
 		}
 		if _, err := r.Pool.Exec(ctx,
-			"SELECT pg_notify($1, $2)", relay.EdgeChannel(edgeID), cmdID,
+			"SELECT pg_notify($1, $2)", relay.CommandsChannel, edgeID,
 		); err != nil {
 			log.Printf("reaper: notify edge %s: %v", edgeID, err)
 		}

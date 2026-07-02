@@ -45,7 +45,12 @@ export default function Watch({ params }: { params: Promise<{ id: string }> }) {
 
   const leave = useCallback(() => {
     if (!session) return;
-    navigator.sendBeacon(`/api/showcase/sessions/${session.id}`, "");
+    // sendBeacon can only POST, which the API doesn't route — keepalive lets
+    // a real DELETE outlive the unloading page.
+    fetch(`/api/showcase/sessions/${session.id}`, {
+      method: "DELETE",
+      keepalive: true,
+    }).catch(() => {});
   }, [session]);
 
   return (

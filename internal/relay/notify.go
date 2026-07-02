@@ -1,9 +1,8 @@
 package relay
 
-import "strings"
-
-// EdgeChannel maps an edge UUID to a Postgres LISTEN/NOTIFY channel name.
-// Strips hyphens so the value is a valid unquoted SQL identifier.
-func EdgeChannel(edgeUUID string) string {
-	return "edge_" + strings.ReplaceAll(edgeUUID, "-", "")
-}
+// CommandsChannel is the single Postgres NOTIFY channel for new commands.
+// The payload is the target edge's UUID. relay-api holds one LISTEN
+// connection on this channel and fans wakeups out to whichever edge
+// long-polls are waiting — one pinned connection total, instead of one per
+// connected edge.
+const CommandsChannel = "relay_commands"

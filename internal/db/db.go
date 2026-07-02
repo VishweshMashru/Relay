@@ -31,10 +31,28 @@ func Connect(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
+// migrateLockID serializes Migrate across instances via a Postgres advisory
+// lock, so two machines starting together can't both apply the same file.
+// 0x52454C41 = "RELA".
+const migrateLockID = int64(0x52454C41)
+
 // Migrate applies every .sql file in migrations/ in lexical order. Tracks
 // applied versions in schema_migrations so reruns are no-ops.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
-	if _, err := pool.Exec(ctx, `
+	// Advisory locks are per-session, so lock/migrate/unlock must all run on
+	// the same connection.
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", migrateLockID); err != nil {
+		return err
+	}
+	defer conn.Exec(ctx, "SELECT pg_advisory_unlock($1)", migrateLockID)
+
+	if _, err := conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version    TEXT PRIMARY KEY,
 			applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -56,7 +74,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 
 	for _, name := range files {
 		var exists bool
-		if err := pool.QueryRow(ctx,
+		if err := conn.QueryRow(ctx,
 			"SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1)", name,
 		).Scan(&exists); err != nil {
 			return err
@@ -68,7 +86,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		if err != nil {
 			return err
 		}
-		tx, err := pool.Begin(ctx)
+		tx, err := conn.Begin(ctx)
 		if err != nil {
 			return err
 		}

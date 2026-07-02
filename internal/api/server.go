@@ -3,8 +3,8 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,29 +15,30 @@ import (
 )
 
 type Server struct {
-	pool   *pgxpool.Pool
-	stream *stream.Client
-	mw     *auth.Middleware
-	mux    *http.ServeMux
+	pool     *pgxpool.Pool
+	stream   *stream.Client
+	mw       *auth.Middleware
+	mux      *http.ServeMux
+	dispatch *dispatcher
 }
 
 func New(pool *pgxpool.Pool, streamClient *stream.Client, jwtSecret, adminToken []byte) *Server {
 	s := &Server{
-		pool:   pool,
-		stream: streamClient,
-		mw:     &auth.Middleware{Pool: pool, JWTSecret: jwtSecret, AdminToken: adminToken},
-		mux:    http.NewServeMux(),
+		pool:     pool,
+		stream:   streamClient,
+		mw:       &auth.Middleware{Pool: pool, JWTSecret: jwtSecret, AdminToken: adminToken},
+		mux:      http.NewServeMux(),
+		dispatch: newDispatcher(pool),
 	}
 	s.routes()
 	return s
 }
 
-func (s *Server) Handler() http.Handler { return withCORS(s.mux) }
+func (s *Server) Handler() http.Handler { return withCORS(limitBody(s.mux)) }
 
-func (s *Server) ListenAndServe(addr string) error {
-	log.Printf("relay-api listening on %s", addr)
-	return http.ListenAndServe(addr, withCORS(s.mux))
-}
+// RunDispatcher owns the single Postgres LISTEN connection that wakes edge
+// long-polls. Blocks until ctx is cancelled; run it in a goroutine.
+func (s *Server) RunDispatcher(ctx context.Context) { s.dispatch.run(ctx) }
 
 func (s *Server) routes() {
 	// Public
@@ -57,6 +58,7 @@ func (s *Server) routes() {
 
 	// Edge-facing — require signed edge JWT
 	s.mux.HandleFunc("GET /v1/edges/commands", s.mw.EdgeToken(s.edgeCommands))
+	s.mux.HandleFunc("POST /v1/edges/commands/ack", s.mw.EdgeToken(s.ackCommands))
 
 	// Admin — require RELAY_ADMIN_TOKEN. Dashboard-only endpoints.
 	s.mux.HandleFunc("POST /v1/admin/onboard", s.mw.Admin(s.adminOnboard))
@@ -74,6 +76,15 @@ func writeJSON(w http.ResponseWriter, code int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+// limitBody caps request bodies at 1 MB. No endpoint takes a large payload;
+// this stops a hostile client from OOMing the VM via an unbounded json.Decode.
+func limitBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func withCORS(next http.Handler) http.Handler {

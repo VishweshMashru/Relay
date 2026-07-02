@@ -4,10 +4,12 @@
 package edge
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -69,6 +71,18 @@ func (a *Agent) Run(ctx context.Context) error {
 		for _, cmd := range cmds {
 			a.dispatch(ctx, cmd)
 		}
+		// Ack after dispatch so the server stops redelivering. Ack means
+		// "received and handled", not "succeeded" — retrying a command whose
+		// dispatch failed locally (bad config, ffmpeg missing) won't help.
+		if len(cmds) > 0 {
+			ids := make([]string, len(cmds))
+			for i, c := range cmds {
+				ids[i] = c.ID
+			}
+			if err := a.ackCommands(ctx, ids); err != nil {
+				log.Printf("ack error: %v (commands will be redelivered)", err)
+			}
+		}
 	}
 }
 
@@ -93,6 +107,29 @@ func (a *Agent) pollCommands(ctx context.Context) ([]relay.Command, error) {
 		return nil, err
 	}
 	return body.Commands, nil
+}
+
+func (a *Agent) ackCommands(ctx context.Context, ids []string) error {
+	body, err := json.Marshal(map[string][]string{"ids": ids})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", a.APIURL+"/v1/edges/commands/ack", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+a.EdgeToken)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func (a *Agent) dispatch(_ context.Context, cmd relay.Command) {

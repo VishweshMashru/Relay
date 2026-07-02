@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 
@@ -58,7 +61,30 @@ func main() {
 	if addr == "" {
 		addr = ":8080"
 	}
-	if err := api.New(pool, streamClient, jwtSecret, adminToken).ListenAndServe(addr); err != nil {
+
+	apiServer := api.New(pool, streamClient, jwtSecret, adminToken)
+
+	// One process-wide LISTEN connection fans command notifications out to
+	// edge long-polls, instead of each poll pinning a pool connection.
+	go apiServer.RunDispatcher(ctx)
+
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: apiServer.Handler(),
+	}
+
+	// Shut down on SIGTERM/SIGINT so deploys drain in-flight long-polls
+	// instead of getting SIGKILLed after the grace period.
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		log.Println("relay-api: shutting down")
+		_ = srv.Shutdown(shutdownCtx)
+	}()
+
+	log.Printf("relay-api listening on %s", addr)
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("relay-api: %v", err)
 	}
 }
