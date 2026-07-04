@@ -85,27 +85,7 @@
         }
 
         if (Hls.isSupported()) {
-          // Cloudflare Stream Live can take 30–60s after RTMPS ingest starts
-          // to publish the first HLS manifest. Retry aggressively so the
-          // viewer doesn't give up before it's ready.
-          const hls = new Hls({
-            liveDurationInfinity: true,
-            manifestLoadingMaxRetry: 12,
-            manifestLoadingRetryDelay: 3000,
-            manifestLoadingMaxRetryTimeout: 60000,
-            levelLoadingMaxRetry: 8,
-            fragLoadingMaxRetry: 8,
-          });
-          hls.on(Hls.Events.MANIFEST_PARSED, () => { status.textContent = "playing"; });
-          hls.on(Hls.Events.ERROR, (_, data) => {
-            if (data.details === "manifestLoadError") {
-              status.textContent = "waiting for Cloudflare to build the stream…";
-              return; // hls.js will keep retrying per config
-            }
-            if (data.fatal) status.textContent = `hls error: ${data.type}/${data.details}`;
-          });
-          hls.loadSource(url);
-          hls.attachMedia(video);
+          playHLS(url);
         } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
           video.src = url; // Safari native HLS
           video.addEventListener("playing", () => status.textContent = "playing");
@@ -114,15 +94,47 @@
         }
       }
 
+      // The stream needs time to warm up (Cloudflare can take 30-60s to
+      // publish the first manifest after ingest starts) and hls.js reports
+      // the interim 204/empty responses as FATAL parse/network errors, not
+      // retryable load errors. So on any fatal startup error we tear the
+      // player down and start over, for up to ~2 minutes.
+      let attempts = 0;
+      function playHLS(url) {
+        const hls = new Hls({
+          liveDurationInfinity: true,
+          manifestLoadingMaxRetry: 6,
+          manifestLoadingRetryDelay: 3000,
+          levelLoadingMaxRetry: 8,
+          fragLoadingMaxRetry: 8,
+        });
+        hls.on(Hls.Events.MANIFEST_PARSED, () => { status.textContent = "playing"; });
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (!data.fatal) {
+            if (data.details === "manifestLoadError") {
+              status.textContent = "waiting for the stream to start…";
+            }
+            return;
+          }
+          hls.destroy();
+          if (attempts++ < 40) {
+            status.textContent = `waiting for the stream to start… (${attempts})`;
+            setTimeout(() => playHLS(url), 3000);
+          } else {
+            fail(`Stream never became ready (${data.type}/${data.details}). Is the camera reachable from the edge?`);
+          }
+        });
+        hls.loadSource(url);
+        hls.attachMedia(video);
+      }
+
       // Heartbeat every 10s so the session doesn't expire while we watch.
+      // There is deliberately NO delete-on-close: refreshing the page must
+      // not kill the session. When the tab goes away heartbeats stop and the
+      // server reaps the session ~30s later.
       setInterval(() => {
         fetch(`${apiBase}/v1/sessions/${sessionID}/heartbeat`, { method: "POST", headers: auth }).catch(() => {});
       }, 10000);
-
-      // Best-effort stop on close.
-      window.addEventListener("pagehide", () => {
-        fetch(`${apiBase}/v1/sessions/${sessionID}`, { method: "DELETE", keepalive: true, headers: auth }).catch(() => {});
-      });
 
       load().catch(err => fail(String(err)));
     </script>
