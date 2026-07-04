@@ -10,7 +10,36 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-plex-mono);
-  --font-serif: var(--font-newsreader);
+}
+
+/* One-time fade-up reveal, driven by IntersectionObserver adding .is-visible
+   (see components/reveal.tsx). Motion is an entrance, never a loop. */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.caret {
+  animation: caret-blink 1.2s steps(1) infinite;
+}
+@keyframes caret-blink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .caret {
+    animation: none;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
