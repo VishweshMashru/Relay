@@ -28,6 +28,9 @@ type Provider interface {
 	DeleteInput(ctx context.Context, uid string) error
 	// ListRecordings returns the video UIDs recorded from a live input.
 	ListRecordings(ctx context.Context, inputUID string) ([]string, error)
+	// SupportsRecordings reports whether record-from-live works on this
+	// backend; createSession rejects record:true when it doesn't.
+	SupportsRecordings() bool
 	GetVideo(ctx context.Context, videoUID string) (*Video, error)
 	// EnableDownload asks the backend to prepare an MP4 for the video.
 	// Idempotent; Ready is false until the rendition is built.
@@ -207,6 +210,8 @@ func (c *Client) DeleteInput(ctx context.Context, uid string) error {
 	}
 	return nil
 }
+
+func (c *Client) SupportsRecordings() bool { return true }
 
 // GetVideo fetches one video's status and playback details.
 func (c *Client) GetVideo(ctx context.Context, videoUID string) (*Video, error) {

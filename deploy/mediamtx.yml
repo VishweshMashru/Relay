@@ -1,0 +1,39 @@
+# MediaMTX config for the selfhosted stream provider.
+#
+# Relay provisions sessions as unguessable paths under live/ — the path is
+# the secret, same model as an RTMP stream key. Any protocol MediaMTX speaks
+# can publish/read those paths; Relay hands out RTMP for push and HLS/WHEP
+# for playback.
+#
+# Enable in Relay with:
+#   RELAY_STREAM_PROVIDER=selfhosted
+#   RELAY_STREAM_RTMP_URL=rtmp://<your-domain>:1935
+#   RELAY_STREAM_HLS_URL=https://<your-domain>/hls
+#   RELAY_STREAM_WEBRTC_URL=https://<your-domain>/webrtc
+
+logLevel: info
+
+# Internal control API — reachable only on the Docker network, never published.
+api: yes
+apiAddress: :9997
+
+# Ingest: RTMP from the edge agent / drones / OBS.
+rtsp: no
+rtmp: yes
+rtmpAddress: :1935
+
+# Playback: HLS (proxied through Caddy at /hls/*).
+hls: yes
+hlsAddress: :8888
+hlsAllowOrigin: '*'
+
+# WebRTC WHIP/WHEP (proxied through Caddy at /webrtc/*). Requires
+# MTX_WEBRTCADDITIONALHOSTS to be set to the server's public IP/host in
+# docker-compose so ICE candidates are reachable from outside.
+webrtc: yes
+webrtcAddress: :8889
+webrtcLocalUDPAddress: :8189
+
+paths:
+  # Accept any path — Relay's unguessable per-session paths land here.
+  all_others:

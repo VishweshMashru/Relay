@@ -26,11 +26,6 @@ func main() {
 	if dsn == "" {
 		log.Fatal("DATABASE_URL is required")
 	}
-	accountID := os.Getenv("ACCOUNT_ID")
-	apiToken := os.Getenv("API_TOKEN")
-	if accountID == "" || apiToken == "" {
-		log.Fatal("ACCOUNT_ID and API_TOKEN are required (Cloudflare Stream)")
-	}
 	jwtSecret := []byte(os.Getenv("RELAY_JWT_SECRET"))
 	if len(jwtSecret) < 16 {
 		log.Fatal("RELAY_JWT_SECRET must be at least 16 chars (dev: `openssl rand -hex 32`)")
@@ -53,20 +48,46 @@ func main() {
 		log.Fatalf("db migrate: %v", err)
 	}
 
-	streamClient := stream.New(accountID, apiToken)
-
-	// With a CF Stream signing key, live inputs require signed playback URLs
-	// and viewers get manifest tokens that die with the session. Provision
-	// one with `relay-admin streamkey create`.
-	if keyID := os.Getenv("RELAY_CF_SIGNING_KEY_ID"); keyID != "" {
-		signingKey, err := stream.NewSigningKey(keyID, os.Getenv("RELAY_CF_SIGNING_KEY_PEM"))
-		if err != nil {
-			log.Fatalf("stream signing key: %v", err)
+	// Media plane: Cloudflare Stream by default; RELAY_STREAM_PROVIDER=
+	// selfhosted swaps in a MediaMTX server you run (see deploy/SELFHOSTED-
+	// STREAM.md). Switch only with no active sessions — teardown of sessions
+	// provisioned on the other backend won't find them.
+	var streamClient stream.Provider
+	switch provider := os.Getenv("RELAY_STREAM_PROVIDER"); provider {
+	case "", "cloudflare":
+		accountID := os.Getenv("ACCOUNT_ID")
+		apiToken := os.Getenv("API_TOKEN")
+		if accountID == "" || apiToken == "" {
+			log.Fatal("ACCOUNT_ID and API_TOKEN are required (Cloudflare Stream)")
 		}
-		streamClient = streamClient.WithSigningKey(signingKey)
-		log.Print("signed playback enabled")
-	} else {
-		log.Print("signed playback disabled: RELAY_CF_SIGNING_KEY_ID not set")
+		cf := stream.New(accountID, apiToken)
+		// With a CF Stream signing key, live inputs require signed playback
+		// URLs and viewers get manifest tokens that die with the session.
+		// Provision one with `relay-admin streamkey create`.
+		if keyID := os.Getenv("RELAY_CF_SIGNING_KEY_ID"); keyID != "" {
+			signingKey, err := stream.NewSigningKey(keyID, os.Getenv("RELAY_CF_SIGNING_KEY_PEM"))
+			if err != nil {
+				log.Fatalf("stream signing key: %v", err)
+			}
+			cf = cf.WithSigningKey(signingKey)
+			log.Print("signed playback enabled")
+		} else {
+			log.Print("signed playback disabled: RELAY_CF_SIGNING_KEY_ID not set")
+		}
+		streamClient = cf
+	case "selfhosted":
+		sh, err := stream.NewSelfHosted(
+			os.Getenv("RELAY_STREAM_RTMP_URL"),
+			os.Getenv("RELAY_STREAM_HLS_URL"),
+			os.Getenv("RELAY_STREAM_WEBRTC_URL"),
+		)
+		if err != nil {
+			log.Fatalf("stream provider: %v", err)
+		}
+		streamClient = sh
+		log.Print("stream provider: selfhosted (mediamtx) — no recordings, no signed URLs")
+	default:
+		log.Fatalf("unknown RELAY_STREAM_PROVIDER %q (cloudflare | selfhosted)", provider)
 	}
 
 	// Blob storage backs the assets (VOD) domain. Optional: without it the

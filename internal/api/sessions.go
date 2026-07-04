@@ -118,6 +118,10 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "record_ttl_seconds must be >= 0"})
 		return
 	}
+	if req.Record && !s.stream.SupportsRecordings() {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "record is not supported by the configured stream provider"})
+		return
+	}
 
 	ctx := r.Context()
 

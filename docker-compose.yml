@@ -25,12 +25,43 @@ services:
       RELAY_JWT_SECRET: ${RELAY_JWT_SECRET}
       RELAY_ADMIN_TOKEN: ${RELAY_ADMIN_TOKEN}
       RELAY_API_ADDR: ":8080"
+      RELAY_CF_SIGNING_KEY_ID: ${RELAY_CF_SIGNING_KEY_ID:-}
+      RELAY_CF_SIGNING_KEY_PEM: ${RELAY_CF_SIGNING_KEY_PEM:-}
+      RELAY_CF_WEBHOOK_SECRET: ${RELAY_CF_WEBHOOK_SECRET:-}
+      RELAY_S3_ENDPOINT: ${RELAY_S3_ENDPOINT:-}
+      RELAY_S3_REGION: ${RELAY_S3_REGION:-}
+      RELAY_S3_BUCKET: ${RELAY_S3_BUCKET:-}
+      RELAY_S3_ACCESS_KEY_ID: ${RELAY_S3_ACCESS_KEY_ID:-}
+      RELAY_S3_SECRET_ACCESS_KEY: ${RELAY_S3_SECRET_ACCESS_KEY:-}
+      RELAY_STREAM_PROVIDER: ${RELAY_STREAM_PROVIDER:-}
+      RELAY_STREAM_RTMP_URL: ${RELAY_STREAM_RTMP_URL:-}
+      RELAY_STREAM_HLS_URL: ${RELAY_STREAM_HLS_URL:-}
+      RELAY_STREAM_WEBRTC_URL: ${RELAY_STREAM_WEBRTC_URL:-}
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/v1/health || exit 1"]
       interval: 15s
       timeout: 3s
       retries: 3
       start_period: 10s
+
+  # Optional self-hosted media plane (RELAY_STREAM_PROVIDER=selfhosted).
+  # Runs unconditionally but idles at ~zero cost when Cloudflare is the
+  # provider. RTMP ingest is a raw TCP port; HLS/WebRTC ride through Caddy.
+  mediamtx:
+    image: bluenviron/mediamtx:1
+    restart: unless-stopped
+    ports:
+      - "1935:1935"      # RTMP ingest
+      - "8189:8189/udp"  # WebRTC ICE
+    expose:
+      - "8888"           # HLS (via Caddy /hls/*)
+      - "8889"           # WHIP/WHEP (via Caddy /webrtc/*)
+    environment:
+      # Public host/IP for WebRTC ICE candidates; without it WHEP works only
+      # from the server itself. Falls back to the API domain.
+      MTX_WEBRTCADDITIONALHOSTS: ${STREAM_PUBLIC_HOST:-${RELAY_DOMAIN}}
+    volumes:
+      - ./deploy/mediamtx.yml:/mediamtx.yml:ro
 
   caddy:
     image: caddy:2-alpine

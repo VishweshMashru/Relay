@@ -15,6 +15,15 @@
         reverse_proxy relay-api:8080
     }
 
+    # Self-hosted media plane (RELAY_STREAM_PROVIDER=selfhosted): HLS and
+    # WHIP/WHEP ride the same domain; MediaMTX serves them internally.
+    handle_path /hls/* {
+        reverse_proxy mediamtx:8888
+    }
+    handle_path /webrtc/* {
+        reverse_proxy mediamtx:8889
+    }
+
     # Everything else: log + proxy.
     handle {
         reverse_proxy relay-api:8080 {
