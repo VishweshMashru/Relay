@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import {
   Camera, Zap, Shield, Globe, Cpu, Radio, ArrowRight, Server, PlayCircle,
-  Lock, Eye, KeyRound, Fingerprint, Cloud, Check, Film, Download, Database, Timer,
+  Lock, Eye, KeyRound, Fingerprint, Cloud, Check, Film, Download, Database,
+  BrainCircuit, Bot, Plane, Home, Factory, Webhook,
 } from "lucide-react";
 
 export default function Landing() {
@@ -10,7 +11,9 @@ export default function Landing() {
     <div className="flex flex-1 flex-col bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100">
       <Nav />
       <Hero />
+      <Layers />
       <Primitives />
+      <Roadmap />
       <Features />
       <HowItWorks />
       <CodeExample />
@@ -37,6 +40,9 @@ function Nav() {
         <div className="flex items-center gap-1 md:gap-3">
           <a href="#primitives" className="hidden md:inline text-sm px-3 py-1.5 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-50">
             Product
+          </a>
+          <a href="#roadmap" className="hidden md:inline text-sm px-3 py-1.5 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-50">
+            Roadmap
           </a>
           <a href="#how" className="hidden md:inline text-sm px-3 py-1.5 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-50">
             How it works
@@ -102,14 +108,14 @@ function Hero() {
             Now in beta — free while we build with you
           </span>
           <h1 className="text-4xl md:text-6xl font-medium tracking-tight leading-[1.04]">
-            The video layer
+            Cameras in.
             <br />
-            for your app.
+            Intelligence out.
           </h1>
           <p className="text-lg md:text-xl text-neutral-400 max-w-xl leading-relaxed">
-            Live-stream any camera — even behind NAT and firewalls — and store, fetch, and
-            share clips. Two primitives, one API key. No RTMP servers, no ffmpeg, no
-            presigned-URL plumbing.
+            Streamo is the camera intelligence platform: stream any camera, drone, or robot
+            — even behind NAT and firewalls — keep the clips that matter, and put open
+            vision models on the feed. One API key, no video plumbing.
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
             <Show when="signed-out">
@@ -131,10 +137,10 @@ function Hero() {
             </Link>
           </div>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-neutral-500">
-            <TickerItem>Live HLS in two calls</TickerItem>
+            <TickerItem>Live in two API calls</TickerItem>
             <TickerItem>Clips with retention TTLs</TickerItem>
-            <TickerItem>Outbound HTTPS only</TickerItem>
-            <TickerItem>Signed playback</TickerItem>
+            <TickerItem>AI agents can look (MCP)</TickerItem>
+            <TickerItem>Your cloud or ours</TickerItem>
           </div>
         </div>
         <HeroMock />
@@ -214,11 +220,195 @@ function HeroMock() {
   );
 }
 
+function StatusBadge({ status }: { status: "live" | "building" | "planned" }) {
+  const styles = {
+    live: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    building: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    planned: "bg-neutral-500/10 text-neutral-500",
+  } as const;
+  const label = { live: "live now", building: "in development", planned: "planned" } as const;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-mono uppercase tracking-wide ${styles[status]}`}>
+      {label[status]}
+    </span>
+  );
+}
+
+function Layers() {
+  const layers = [
+    {
+      icon: Eye,
+      status: "live" as const,
+      title: "See — the video layer",
+      body: "Stream any camera, drone, or robot from any network. On-demand live sessions, stored clips with retention, single frames for AI. The plumbing nobody should build twice.",
+      points: ["Live HLS + sub-second WebRTC", "Clips & recordings with TTLs", "Edge agent or direct push"],
+    },
+    {
+      icon: BrainCircuit,
+      status: "building" as const,
+      title: "Understand — open vision models",
+      body: "Lightweight, open-source models trained for specific jobs — intrusion, PPE, fire & smoke, packages — running at the edge, exposed through the same API as the video.",
+      points: ["Open-source, edge-first models", "Detections API & event webhooks", "MCP server for AI agents (live now)"],
+    },
+    {
+      icon: Factory,
+      status: "live" as const,
+      title: "Act — products on top",
+      body: "Complete products assembled from the layers below. Foreman turns factory CCTV into safety and operations intelligence today; home & site monitoring comes next.",
+      points: ["Foreman — factory intelligence (live)", "Home & site security (planned)", "Your product — built on the API"],
+    },
+  ];
+  return (
+    <section className="max-w-6xl mx-auto px-6 py-24">
+      <div className="flex flex-col items-center text-center gap-4 mb-14">
+        <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">The company</span>
+        <h2 className="text-3xl md:text-4xl font-medium tracking-tight max-w-2xl">
+          A camera intelligence company, built in layers.
+        </h2>
+        <p className="text-neutral-600 dark:text-neutral-400 max-w-2xl mt-2">
+          Most video products stop at pixels. Streamo is building the full stack: move the
+          video, understand it, and ship products on top — with every layer open to
+          developers.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {layers.map((l) => {
+          const Icon = l.icon;
+          return (
+            <div key={l.title} className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-7 flex flex-col gap-4 bg-white dark:bg-neutral-950">
+              <div className="flex items-center justify-between">
+                <span className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <Icon className="w-5 h-5" />
+                </span>
+                <StatusBadge status={l.status} />
+              </div>
+              <div className="font-medium text-lg">{l.title}</div>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">{l.body}</p>
+              <ul className="mt-auto flex flex-col gap-1.5 text-sm text-neutral-600 dark:text-neutral-400">
+                {l.points.map((p) => (
+                  <li key={p} className="flex items-start gap-2">
+                    <span className="w-1 h-1 mt-2 rounded-full bg-emerald-500 shrink-0" />
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function Roadmap() {
+  const tracks = [
+    {
+      icon: BrainCircuit,
+      title: "AI & agents",
+      items: [
+        { label: "Frames API — single JPEG for VLMs", status: "live" as const },
+        { label: "MCP server — agents watch cameras", status: "live" as const },
+        { label: "Open vision models (PPE, intrusion, fire)", status: "building" as const },
+        { label: "Detections API & event webhooks", status: "building" as const },
+        { label: "Training-data pipelines for physical AI", status: "planned" as const },
+      ],
+    },
+    {
+      icon: Plane,
+      title: "Drones",
+      items: [
+        { label: "Agentless push — point a DJI at us", status: "live" as const },
+        { label: "Sub-second WebRTC (WHIP/WHEP)", status: "live" as const },
+        { label: "Drone-in-a-box patrol monitoring", status: "planned" as const },
+        { label: "Mission clips & flight archives", status: "planned" as const },
+      ],
+    },
+    {
+      icon: Bot,
+      title: "Robotics",
+      items: [
+        { label: "Fleet observability dashboards", status: "building" as const },
+        { label: "Teleop-assist viewing (<1s)", status: "live" as const },
+        { label: "ROS 2 edge agent", status: "planned" as const },
+        { label: "Incident clips → training datasets", status: "planned" as const },
+      ],
+    },
+    {
+      icon: Home,
+      title: "Homes & sites",
+      items: [
+        { label: "Factory intelligence (Foreman)", status: "live" as const },
+        { label: "Multi-camera monitoring dashboard", status: "building" as const },
+        { label: "BYO-camera home security", status: "planned" as const },
+        { label: "Mobile alerts with event clips", status: "planned" as const },
+      ],
+    },
+    {
+      icon: Webhook,
+      title: "Platform & developers",
+      items: [
+        { label: "REST API + dashboard", status: "live" as const },
+        { label: "Bring your own media server", status: "live" as const },
+        { label: "TypeScript & Python SDKs", status: "building" as const },
+        { label: "Docs site & OpenAPI spec", status: "building" as const },
+        { label: "Usage metering & billing", status: "planned" as const },
+      ],
+    },
+    {
+      icon: Shield,
+      title: "Trust",
+      items: [
+        { label: "Signed playback, viewer tokens", status: "live" as const },
+        { label: "Per-edge credential revocation", status: "live" as const },
+        { label: "Rate limiting & audit logs", status: "planned" as const },
+        { label: "SOC 2 path", status: "planned" as const },
+      ],
+    },
+  ];
+  return (
+    <section id="roadmap" className="max-w-6xl mx-auto px-6 py-24 border-t border-neutral-200 dark:border-neutral-800">
+      <div className="flex flex-col items-center text-center gap-4 mb-14">
+        <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">Where this is going</span>
+        <h2 className="text-3xl md:text-4xl font-medium tracking-tight max-w-2xl">
+          Built in the open, one layer at a time.
+        </h2>
+        <p className="text-neutral-600 dark:text-neutral-400 max-w-2xl mt-2">
+          What ships is marked live. What we're building is marked honestly. If your use
+          case is on this map, talk to us — early design partners steer it.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {tracks.map((t) => {
+          const Icon = t.icon;
+          return (
+            <div key={t.title} className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-6 flex flex-col gap-4 bg-white dark:bg-neutral-950">
+              <div className="flex items-center gap-2.5">
+                <span className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center">
+                  <Icon className="w-4 h-4" />
+                </span>
+                <span className="font-medium">{t.title}</span>
+              </div>
+              <ul className="flex flex-col gap-2.5">
+                {t.items.map((it) => (
+                  <li key={it.label} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-neutral-700 dark:text-neutral-300">{it.label}</span>
+                    <StatusBadge status={it.status} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function Primitives() {
   return (
     <section id="primitives" className="max-w-6xl mx-auto px-6 py-24">
       <div className="flex flex-col items-center text-center gap-4 mb-14">
-        <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">Primitives</span>
+        <span className="text-xs font-mono uppercase tracking-widest text-neutral-500">The See layer — in production</span>
         <h2 className="text-3xl md:text-4xl font-medium tracking-tight max-w-2xl">
           Two primitives cover most of video.
         </h2>
@@ -275,12 +465,6 @@ function Primitives() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 px-6 py-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-neutral-500">
-        <span className="text-xs font-mono uppercase tracking-widest">On the roadmap</span>
-        <span className="inline-flex items-center gap-1.5"><Timer className="w-3.5 h-3.5" /> Record-from-live</span>
-        <span className="inline-flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> WebRTC for edge ingest</span>
-        <span className="inline-flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> Event webhooks</span>
-      </div>
     </section>
   );
 }
@@ -523,10 +707,10 @@ function UseCases() {
     { label: "AI CCTV & site intelligence", note: "live view + event clips" },
     { label: "Factory monitoring", note: "defect detection feeds" },
     { label: "Construction sites", note: "progress AI, PPE detection" },
-    { label: "Retail analytics", note: "person-counting, queue AI" },
-    { label: "Warehouse & logistics", note: "pallet tracking, safety" },
-    { label: "Smart buildings", note: "occupancy, visitor logs" },
-    { label: "Drone livestreams", note: "on-demand ops feeds" },
+    { label: "AI agents & VLMs", note: "cameras as a tool call" },
+    { label: "Robot fleets", note: "observability + teleop-assist" },
+    { label: "Drone operations", note: "live feeds, mission clips" },
+    { label: "Home & small business", note: "BYO-camera security" },
     { label: "Incident & evidence", note: "clips with retention" },
   ];
   return (
@@ -764,7 +948,7 @@ function Footer() {
         <div className="flex items-center gap-2 text-sm text-neutral-500">
           <span className="w-5 h-5 rounded-md bg-gradient-to-br from-emerald-500 to-emerald-700" />
           <span className="font-mono font-semibold">streamo</span>
-          <span>· the video layer for the physical world</span>
+          <span>· camera intelligence for the physical world</span>
         </div>
         <div className="flex items-center gap-6 text-sm text-neutral-500">
           <a href="#primitives" className="hover:text-neutral-900 dark:hover:text-neutral-50">Product</a>
