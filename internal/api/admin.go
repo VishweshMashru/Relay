@@ -2,9 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"relay/internal/auth"
 )
@@ -81,6 +83,23 @@ func (s *Server) adminOnboard(w http.ResponseWriter, r *http.Request) {
 		`INSERT INTO users(clerk_user_id, email, project_id) VALUES ($1, $2, $3)`,
 		req.ClerkUserID, req.Email, projectID,
 	); err != nil {
+		// Two onboard calls can race (Next.js dev renders the welcome page
+		// twice concurrently): both miss the SELECT above, both insert, one
+		// loses here. The loser's tx rolls back its project+key; answer with
+		// the winner's mapping instead of a 500.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			_ = tx.Rollback(ctx)
+			if err := s.pool.QueryRow(ctx,
+				`SELECT project_id::text FROM users WHERE clerk_user_id = $1`, req.ClerkUserID,
+			).Scan(&existingProject); err == nil {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"project_id": existingProject,
+					"is_new":     false,
+				})
+				return
+			}
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
