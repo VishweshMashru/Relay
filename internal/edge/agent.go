@@ -135,9 +135,17 @@ func (a *Agent) ackCommands(ctx context.Context, ids []string) error {
 func (a *Agent) dispatch(_ context.Context, cmd relay.Command) {
 	switch cmd.Type {
 	case relay.CommandStart:
+		// Re-read cameras.json on every start so config edits apply without
+		// restarting the agent — stale in-memory config silently eating
+		// start commands is a miserable failure mode.
+		if cfg, err := LoadConfig(a.ConfigPath); err != nil {
+			log.Printf("start: reload %s: %v (using cached config)", a.ConfigPath, err)
+		} else {
+			a.config = cfg
+		}
 		rtsp := a.config.Cameras[cmd.CameraID]
 		if rtsp == "" {
-			log.Printf("start: no RTSP URL configured for camera %s (add it to cameras.json)", cmd.CameraID)
+			log.Printf("start: no RTSP URL configured for camera %s (add it to %s)", cmd.CameraID, a.ConfigPath)
 			return
 		}
 		pushURL, _ := cmd.Payload["push_url"].(string)
