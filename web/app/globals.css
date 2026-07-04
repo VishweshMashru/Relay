@@ -10,10 +10,12 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-plex-mono);
+  --font-display: var(--font-grotesk);
 }
 
 /* One-time fade-up reveal, driven by IntersectionObserver adding .is-visible
-   (see components/reveal.tsx). Motion is an entrance, never a loop. */
+   (see components/reveal.tsx). Motion is an entrance, never a loop — the
+   only exception is the small live-status dot. */
 .reveal {
   opacity: 0;
   transform: translateY(14px);
@@ -24,11 +26,22 @@
   transform: none;
 }
 
-.caret {
-  animation: caret-blink 1.2s steps(1) infinite;
+/* ------------------------------------------------- viewfinder ambience */
+
+/* Faint blueprint grid used behind the hero. */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
 }
-@keyframes caret-blink {
-  50% { opacity: 0; }
+
+/* Recording dot. */
+.rec {
+  animation: rec-blink 1.6s ease-in-out infinite;
+}
+@keyframes rec-blink {
+  50% { opacity: 0.25; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -37,7 +50,7 @@
     transform: none;
     transition: none;
   }
-  .caret {
+  .rec {
     animation: none;
   }
 }

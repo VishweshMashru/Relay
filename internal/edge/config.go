@@ -40,3 +40,33 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	return &cfg, nil
 }
+
+// ResolveConfigPath finds cameras.json the same way across the agent and the
+// `relay-edge camera` CLI: explicit env, then the working directory, then the
+// installer's location.
+func ResolveConfigPath() string {
+	if p := os.Getenv("RELAY_CAMERAS_FILE"); p != "" {
+		return p
+	}
+	if _, err := os.Stat("cameras.json"); err == nil {
+		return "cameras.json"
+	}
+	if _, err := os.Stat("/etc/relay-edge/cameras.json"); err == nil {
+		return "/etc/relay-edge/cameras.json"
+	}
+	return "cameras.json"
+}
+
+// SaveConfig writes cameras.json atomically (temp file + rename) with 0600
+// permissions — the file holds camera credentials.
+func SaveConfig(path string, cfg *Config) error {
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}

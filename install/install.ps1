@@ -120,15 +120,13 @@ schtasks /Run /TN $TaskName | Out-Null
 Write-Host ""
 Write-Host "✓ relay-edge installed and running." -ForegroundColor Green
 Write-Host ""
-Write-Host "Next step — add your cameras:" -ForegroundColor Cyan
-Write-Host "  notepad $CamerasFile"
+Write-Host "Next step — add your cameras (no restart needed):" -ForegroundColor Cyan
+Write-Host "  relay-edge camera add <camera-id-from-dashboard> `"rtsp://user:pass@192.168.1.20:554/path`""
 Write-Host ""
-Write-Host "Example content:"
+Write-Host "Or edit $CamerasFile by hand. Example content:"
 Write-Host '  {'
 Write-Host '    "cameras": {'
 Write-Host '      "<camera-uuid-from-dashboard>": "rtsp://user:pass@192.168.1.20:554/Streaming/Channels/101"'
 Write-Host '    }'
 Write-Host '  }'
-Write-Host ""
-Write-Host "After editing, restart the task:"
-Write-Host "  schtasks /End /TN RelayEdge; schtasks /Run /TN RelayEdge"
+

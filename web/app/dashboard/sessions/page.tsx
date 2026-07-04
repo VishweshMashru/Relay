@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeader, EmptyState, Badge, Table } from "../_ui";
 import { dashFetch, timeAgo, type SessionRow } from "@/lib/dashboard-data";
 import { StopSession } from "./sessions-client";
@@ -20,7 +21,15 @@ export default async function Sessions() {
 
   return (
     <div className="p-8 flex flex-col gap-6">
-      <PageHeader title="Sessions" subtitle="Live and recent viewer sessions (latest 100)." />
+      <div className="flex items-start justify-between gap-4">
+        <PageHeader title="Sessions" subtitle="Live and recent viewer sessions (latest 100)." />
+        <Link
+          href="/dashboard/push"
+          className="h-9 inline-flex items-center rounded-md bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900 px-4 text-sm font-medium shrink-0"
+        >
+          Push a stream
+        </Link>
+      </div>
 
       {sessions.length === 0 ? (
         <EmptyState

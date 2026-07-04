@@ -185,10 +185,10 @@ EOF
 fi
 
 echo ""
-echo "Next step — add your cameras:"
-echo "  sudo nano ${CONFIG_DIR}/cameras.json"
+echo "Next step — add your cameras (no restart needed; credentials stay on this machine):"
+echo "  sudo relay-edge camera add <camera-id-from-dashboard> \"rtsp://user:pass@192.168.1.20:554/path\""
 echo ""
-echo "Example content:"
+echo "Or edit ${CONFIG_DIR}/cameras.json by hand. Example content:"
 cat <<'EOF'
   {
     "cameras": {

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeader, StatCard, EmptyState } from "./_ui";
 import { dashFetch, formatBytes, type EdgeRow, type SessionRow, type Settings, type Usage } from "@/lib/dashboard-data";
 
@@ -48,6 +49,14 @@ export default async function Overview() {
           />
         </div>
       )}
+
+      <p className="mt-8 text-sm text-neutral-500">
+        No camera handy?{" "}
+        <Link href="/dashboard/push" className="underline underline-offset-2 hover:text-neutral-900 dark:hover:text-neutral-50">
+          Push a stream from OBS or your phone
+        </Link>{" "}
+        — no agent or terminal needed.
+      </p>
     </div>
   );
 }

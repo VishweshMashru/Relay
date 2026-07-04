@@ -70,9 +70,9 @@ export function AddCamera({ edges }: { edges: { id: string; name: string }[] }) 
       {created && (
         <div className="w-full">
           <SecretOnce
-            label="Camera ID"
-            value={created.camera_id}
-            hint={`Add it to the edge's cameras.json: { "${created.camera_id}": "rtsp://user:pass@camera-ip/..." } — the RTSP URL never leaves the LAN.`}
+            label="Camera ID — now map it to its RTSP URL on the edge machine"
+            value={`relay-edge camera add ${created.camera_id} "rtsp://user:pass@camera-ip:554/path"`}
+            hint="Run this on the machine next to the camera (sudo if installed as a service). The RTSP URL and password never leave that machine; the agent picks it up without a restart."
           />
         </div>
       )}
