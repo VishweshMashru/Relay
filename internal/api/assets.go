@@ -252,7 +252,12 @@ func (s *Server) deleteAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if source == string(relay.AssetSourceCloudflare) {
-		if err := s.stream.DeleteVideo(ctx, key); err != nil {
+		cf, ok := s.cloudflare()
+		if !ok {
+			writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "cloudflare provider not configured"})
+			return
+		}
+		if err := cf.DeleteVideo(ctx, key); err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "stream: " + err.Error()})
 			return
 		}
@@ -317,8 +322,15 @@ func (s *Server) fetchAsset(r *http.Request, projectID, id string) (*relay.Asset
 
 // fetchCloudflareURLs resolves playback/download for a recording asset,
 // flipping it ready (with real size/duration) once CF finishes processing.
+// Recording assets are inherently CF-backed regardless of the project's
+// current live provider.
 func (s *Server) fetchCloudflareURLs(ctx context.Context, a *relay.Asset, videoUID string) {
-	video, err := s.stream.GetVideo(ctx, videoUID)
+	cf, ok := s.cloudflare()
+	if !ok {
+		log.Printf("assets: %s is cloudflare-sourced but cloudflare is not configured", a.ID)
+		return
+	}
+	video, err := cf.GetVideo(ctx, videoUID)
 	if err != nil {
 		log.Printf("assets: get video %s: %v", a.ID, err)
 		return
@@ -338,7 +350,7 @@ func (s *Server) fetchCloudflareURLs(ctx context.Context, a *relay.Asset, videoU
 	if !video.Ready {
 		return
 	}
-	playback, err := s.stream.SignPlaybackURL(video.HLSURL, videoUID, time.Now().Add(playbackURLExpiry))
+	playback, err := cf.SignPlaybackURL(video.HLSURL, videoUID, time.Now().Add(playbackURLExpiry))
 	if err != nil {
 		log.Printf("assets: sign playback %s: %v", a.ID, err)
 	} else {
@@ -346,13 +358,13 @@ func (s *Server) fetchCloudflareURLs(ctx context.Context, a *relay.Asset, videoU
 	}
 	// MP4 rendition builds asynchronously on first request; download_url
 	// appears on a later fetch once it's ready.
-	dl, err := s.stream.EnableDownload(ctx, videoUID)
+	dl, err := cf.EnableDownload(ctx, videoUID)
 	if err != nil {
 		log.Printf("assets: enable download %s: %v", a.ID, err)
 		return
 	}
 	if dl.Ready {
-		download, err := s.stream.SignPlaybackURL(dl.URL, videoUID, time.Now().Add(downloadURLExpiry))
+		download, err := cf.SignPlaybackURL(dl.URL, videoUID, time.Now().Add(downloadURLExpiry))
 		if err != nil {
 			log.Printf("assets: sign download %s: %v", a.ID, err)
 		} else {

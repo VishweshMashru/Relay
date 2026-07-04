@@ -151,7 +151,11 @@ func (s *Server) handleVideoWebhook(r *http.Request, body []byte) {
 	if ttl != nil {
 		sess.TTLSeconds = *ttl
 	}
-	if _, err := vod.Harvest(ctx, s.pool, s.stream, sess); err != nil {
+	cf, ok := s.cloudflare()
+	if !ok {
+		return
+	}
+	if _, err := vod.Harvest(ctx, s.pool, cf, sess); err != nil {
 		log.Printf("webhook: fallback harvest for input %s: %v", v.LiveInput, err)
 	}
 }
@@ -191,27 +195,28 @@ func (s *Server) handleNotificationWebhook(r *http.Request, body []byte) {
 		// encoder goes away, end the session instead of billing out the TTL.
 		// Edge sessions are left alone — the agent's ffmpeg supervisor
 		// reconnects on camera blips.
-		var id, projectID, cameraID, streamUID string
+		var id, projectID, cameraID, streamUID, provName string
 		var record bool
 		var ttl *int
 		err := s.pool.QueryRow(ctx, `
 			UPDATE sessions SET status = 'ended'
 			WHERE stream_input_uid = $1 AND ingest = 'push' AND status IN ('pending','live')
-			RETURNING id::text, project_id::text, COALESCE(camera_id::text,''), COALESCE(stream_input_uid,''), record, record_ttl_seconds
-		`, inputID).Scan(&id, &projectID, &cameraID, &streamUID, &record, &ttl)
+			RETURNING id::text, project_id::text, COALESCE(camera_id::text,''), COALESCE(stream_input_uid,''), provider, record, record_ttl_seconds
+		`, inputID).Scan(&id, &projectID, &cameraID, &streamUID, &provName, &record, &ttl)
 		if err != nil {
 			return // edge session or already ended — nothing to do
 		}
 		log.Printf("webhook: input %s disconnected → push session %s ended", inputID, id)
+		prov := s.provider(provName)
 		if record {
 			sess := vod.Session{ID: id, ProjectID: projectID, CameraID: cameraID, InputUID: streamUID}
 			if ttl != nil {
 				sess.TTLSeconds = *ttl
 			}
-			if _, err := vod.Harvest(ctx, s.pool, s.stream, sess); err != nil {
+			if _, err := vod.Harvest(ctx, s.pool, prov, sess); err != nil {
 				log.Printf("webhook: harvest session %s: %v", id, err)
 			}
-		} else if err := s.stream.Destroy(ctx, streamUID); err != nil {
+		} else if err := prov.Destroy(ctx, streamUID); err != nil {
 			log.Printf("webhook: destroy input %s: %v", inputID, err)
 		}
 

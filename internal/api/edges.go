@@ -136,7 +136,7 @@ func (s *Server) listSessions(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	rows, err := s.pool.Query(r.Context(), `
 		SELECT se.id::text, COALESCE(se.camera_id::text,''), COALESCE(c.name,''), COALESCE(e.name,''),
-		       se.ingest, se.status, se.protocol,
+		       se.ingest, se.status, se.protocol, se.provider,
 		       se.started_at, COALESCE(se.last_heartbeat_at, se.started_at), se.expires_at
 		FROM sessions se
 		LEFT JOIN cameras c ON c.id = se.camera_id
@@ -152,15 +152,15 @@ func (s *Server) listSessions(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	out := []map[string]any{}
 	for rows.Next() {
-		var id, cameraID, cameraName, edgeName, ingest, st, protocol string
+		var id, cameraID, cameraName, edgeName, ingest, st, protocol, provider string
 		var started, heartbeat, expires time.Time
-		if err := rows.Scan(&id, &cameraID, &cameraName, &edgeName, &ingest, &st, &protocol, &started, &heartbeat, &expires); err != nil {
+		if err := rows.Scan(&id, &cameraID, &cameraName, &edgeName, &ingest, &st, &protocol, &provider, &started, &heartbeat, &expires); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
 		out = append(out, map[string]any{
 			"id": id, "camera_id": cameraID, "camera_name": cameraName, "edge_name": edgeName,
-			"ingest": ingest, "status": st, "protocol": protocol,
+			"ingest": ingest, "status": st, "protocol": protocol, "provider": provider,
 			"started_at": started, "last_heartbeat_at": heartbeat, "expires_at": expires,
 		})
 	}

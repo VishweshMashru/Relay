@@ -118,12 +118,16 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "record_ttl_seconds must be >= 0"})
 		return
 	}
-	if req.Record && !s.stream.SupportsRecordings() {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "record is not supported by the configured stream provider"})
+	ctx := r.Context()
+
+	// Media plane per project — a dashboard setting, not a deploy decision.
+	// The session records the choice so teardown targets the right backend
+	// even if the project switches later.
+	provName, prov := s.projectProvider(ctx, projectID)
+	if req.Record && !prov.SupportsRecordings() {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "record is not supported by the project's stream provider (" + provName + ")"})
 		return
 	}
-
-	ctx := r.Context()
 
 	// Edge ingest: verify the camera exists AND is owned by this project.
 	var edgeID string
@@ -149,7 +153,7 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 
 	// Provision CF input outside the DB tx so we don't hold the tx over a
 	// network call.
-	input, err := s.stream.Provision(ctx, inputName)
+	input, err := prov.Provision(ctx, inputName)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "cloudflare stream: " + err.Error()})
 		return
@@ -159,7 +163,7 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		if !committed {
 			bg, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			_ = s.stream.Destroy(bg, input.UID)
+			_ = prov.Destroy(bg, input.UID)
 		}
 	}()
 
@@ -182,11 +186,11 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 
 	var sess relay.Session
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO sessions(project_id, camera_id, ingest, status, protocol, record, record_ttl_seconds, viewer_url, stream_input_uid, started_at, expires_at)
-		VALUES ($1, NULLIF($2,'')::uuid, $3, 'pending', $4, $5, NULLIF($6, 0), $7, $8, $9, $10)
-		RETURNING id::text, COALESCE(camera_id::text,''), ingest, status, protocol, record, COALESCE(viewer_url,''), started_at, expires_at
-	`, projectID, req.CameraID, req.Ingest, req.Protocol, req.Record, req.RecordTTLSeconds, viewerURL, input.UID, now, expires).Scan(
-		&sess.ID, &sess.CameraID, &sess.Ingest, &sess.Status, &sess.Protocol, &sess.Record, &sess.ViewerURL, &sess.StartedAt, &sess.ExpiresAt,
+		INSERT INTO sessions(project_id, camera_id, ingest, status, protocol, provider, record, record_ttl_seconds, viewer_url, stream_input_uid, started_at, expires_at)
+		VALUES ($1, NULLIF($2,'')::uuid, $3, 'pending', $4, $5, $6, NULLIF($7, 0), $8, $9, $10, $11)
+		RETURNING id::text, COALESCE(camera_id::text,''), ingest, status, protocol, provider, record, COALESCE(viewer_url,''), started_at, expires_at
+	`, projectID, req.CameraID, req.Ingest, req.Protocol, provName, req.Record, req.RecordTTLSeconds, viewerURL, input.UID, now, expires).Scan(
+		&sess.ID, &sess.CameraID, &sess.Ingest, &sess.Status, &sess.Protocol, &sess.Provider, &sess.Record, &sess.ViewerURL, &sess.StartedAt, &sess.ExpiresAt,
 	); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -230,7 +234,7 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 	}
 	// With a CF signing key configured, the manifest URL embeds a token that
 	// dies with the session; the stored URL stays unsigned.
-	sess.ViewerURL, err = s.stream.SignPlaybackURL(sess.ViewerURL, input.UID, expires)
+	sess.ViewerURL, err = prov.SignPlaybackURL(sess.ViewerURL, input.UID, expires)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -246,16 +250,16 @@ func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
 	var sess relay.Session
 	var streamUID string
 	err := s.pool.QueryRow(r.Context(), `
-		SELECT id::text, COALESCE(camera_id::text,''), ingest, status, protocol, COALESCE(viewer_url,''), COALESCE(stream_input_uid,''), started_at, COALESCE(last_heartbeat_at, started_at), expires_at
+		SELECT id::text, COALESCE(camera_id::text,''), ingest, status, protocol, provider, COALESCE(viewer_url,''), COALESCE(stream_input_uid,''), started_at, COALESCE(last_heartbeat_at, started_at), expires_at
 		FROM sessions WHERE id = $1
 	`, id).Scan(
-		&sess.ID, &sess.CameraID, &sess.Ingest, &sess.Status, &sess.Protocol, &sess.ViewerURL, &streamUID, &sess.StartedAt, &sess.LastHeartbeatAt, &sess.ExpiresAt,
+		&sess.ID, &sess.CameraID, &sess.Ingest, &sess.Status, &sess.Protocol, &sess.Provider, &sess.ViewerURL, &streamUID, &sess.StartedAt, &sess.LastHeartbeatAt, &sess.ExpiresAt,
 	)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
 		return
 	}
-	sess.ViewerURL, err = s.stream.SignPlaybackURL(sess.ViewerURL, streamUID, sess.ExpiresAt)
+	sess.ViewerURL, err = s.provider(sess.Provider).SignPlaybackURL(sess.ViewerURL, streamUID, sess.ExpiresAt)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -292,14 +296,14 @@ func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 
-	var cameraID, streamInputUID, sessProjectID string
+	var cameraID, streamInputUID, sessProjectID, provName string
 	var record bool
 	var recordTTL *int
 	if err := tx.QueryRow(ctx, `
 		UPDATE sessions SET status = 'ended'
 		WHERE id = $1 AND status IN ('pending','live')
-		RETURNING COALESCE(camera_id::text,''), COALESCE(stream_input_uid,''), project_id::text, record, record_ttl_seconds
-	`, id).Scan(&cameraID, &streamInputUID, &sessProjectID, &record, &recordTTL); err != nil {
+		RETURNING COALESCE(camera_id::text,''), COALESCE(stream_input_uid,''), project_id::text, provider, record, record_ttl_seconds
+	`, id).Scan(&cameraID, &streamInputUID, &sessProjectID, &provName, &record, &recordTTL); err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not active"})
 		return
 	}
@@ -334,6 +338,7 @@ func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if streamInputUID != "" {
+		prov := s.provider(provName)
 		go func() {
 			bg, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
@@ -342,14 +347,14 @@ func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
 				if recordTTL != nil {
 					ttl = *recordTTL
 				}
-				if _, err := vod.Harvest(bg, s.pool, s.stream, vod.Session{
+				if _, err := vod.Harvest(bg, s.pool, prov, vod.Session{
 					ID: id, ProjectID: sessProjectID, CameraID: cameraID,
 					InputUID: streamInputUID, TTLSeconds: ttl,
 				}); err != nil {
 					log.Printf("sessions: harvest %s: %v", id, err)
 				}
 			} else {
-				_ = s.stream.Destroy(bg, streamInputUID)
+				_ = prov.Destroy(bg, streamInputUID)
 			}
 		}()
 	}

@@ -53,6 +53,7 @@ type Session struct {
 	CameraID        string        `json:"camera_id,omitempty"` // empty for push-ingest sessions
 	Ingest          IngestType    `json:"ingest"`
 	Protocol        Protocol      `json:"protocol"`
+	Provider        string        `json:"provider"` // media plane this session runs on
 	Record          bool          `json:"record,omitempty"`
 	Status          SessionStatus `json:"status"`
 	ViewerURL       string        `json:"viewer_url,omitempty"`

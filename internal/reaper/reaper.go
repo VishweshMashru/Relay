@@ -22,8 +22,9 @@ import (
 
 type Reaper struct {
 	Pool         *pgxpool.Pool
-	Stream       stream.Provider
-	Blobs        storage.Store // nil disables asset retention sweeps
+	Providers    map[string]stream.Provider // teardown targets the session's own provider
+	Default      string
+	Blobs        storage.Store // nil disables s3 asset retention sweeps
 	Interval     time.Duration // how often to sweep
 	StaleAfter   time.Duration // no-heartbeat threshold before we consider a live session dead
 	StartupGrace time.Duration // extra slack for pending sessions that never heartbeated — CF manifest build + ffmpeg connect can take ~60s
@@ -31,15 +32,23 @@ type Reaper struct {
 	lastPrune time.Time
 }
 
-func New(pool *pgxpool.Pool, s stream.Provider, blobs storage.Store) *Reaper {
+func New(pool *pgxpool.Pool, providers map[string]stream.Provider, defaultProvider string, blobs storage.Store) *Reaper {
 	return &Reaper{
 		Pool:         pool,
-		Stream:       s,
+		Providers:    providers,
+		Default:      defaultProvider,
 		Blobs:        blobs,
 		Interval:     10 * time.Second,
 		StaleAfter:   30 * time.Second,
 		StartupGrace: 90 * time.Second,
 	}
+}
+
+func (r *Reaper) provider(name string) stream.Provider {
+	if p, ok := r.Providers[name]; ok {
+		return p
+	}
+	return r.Providers[r.Default]
 }
 
 func (r *Reaper) Run(ctx context.Context) {
@@ -94,7 +103,11 @@ func (r *Reaper) sweepAssets(ctx context.Context) {
 	for _, e := range toDelete {
 		switch e.source {
 		case "cloudflare":
-			if err := r.Stream.DeleteVideo(ctx, e.key); err != nil {
+			cf, ok := r.Providers["cloudflare"]
+			if !ok {
+				continue // CF not configured here; leave for a deployment that has it
+			}
+			if err := cf.DeleteVideo(ctx, e.key); err != nil {
 				log.Printf("reaper assets: delete video %s: %v", e.id, err)
 				continue
 			}
@@ -168,7 +181,7 @@ func (r *Reaper) sweep(ctx context.Context) (int, error) {
 		    OR (ingest = 'edge' AND last_heartbeat_at IS NULL AND started_at < now() - make_interval(secs => $2))
 		  )
 		RETURNING id::text, COALESCE(camera_id::text, ''), COALESCE(stream_input_uid, ''),
-		          project_id::text, record, COALESCE(record_ttl_seconds, 0)
+		          project_id::text, provider, record, COALESCE(record_ttl_seconds, 0)
 	`, r.StaleAfter.Seconds(), r.StartupGrace.Seconds())
 	if err != nil {
 		return 0, err
@@ -176,14 +189,14 @@ func (r *Reaper) sweep(ctx context.Context) (int, error) {
 	defer rows.Close()
 
 	type expired struct {
-		sessionID, cameraID, streamUID, projectID string
-		record                                    bool
-		recordTTL                                 int
+		sessionID, cameraID, streamUID, projectID, provider string
+		record                                              bool
+		recordTTL                                           int
 	}
 	var toReap []expired
 	for rows.Next() {
 		var e expired
-		if err := rows.Scan(&e.sessionID, &e.cameraID, &e.streamUID, &e.projectID, &e.record, &e.recordTTL); err != nil {
+		if err := rows.Scan(&e.sessionID, &e.cameraID, &e.streamUID, &e.projectID, &e.provider, &e.record, &e.recordTTL); err != nil {
 			return 0, err
 		}
 		toReap = append(toReap, e)
@@ -222,15 +235,16 @@ func (r *Reaper) sweep(ctx context.Context) (int, error) {
 		// canceling shouldn't leak billing. record=true keeps the recording
 		// as an asset; otherwise everything is destroyed.
 		if e.streamUID != "" {
+			prov := r.provider(e.provider)
 			bg, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			if e.record {
-				if _, err := vod.Harvest(bg, r.Pool, r.Stream, vod.Session{
+				if _, err := vod.Harvest(bg, r.Pool, prov, vod.Session{
 					ID: e.sessionID, ProjectID: e.projectID, CameraID: e.cameraID,
 					InputUID: e.streamUID, TTLSeconds: e.recordTTL,
 				}); err != nil {
 					log.Printf("reaper: harvest session %s: %v", e.sessionID, err)
 				}
-			} else if err := r.Stream.Destroy(bg, e.streamUID); err != nil {
+			} else if err := prov.Destroy(bg, e.streamUID); err != nil {
 				log.Printf("reaper: destroy stream %s: %v", e.streamUID, err)
 			}
 			cancel()

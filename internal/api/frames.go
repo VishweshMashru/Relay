@@ -26,11 +26,11 @@ func (s *Server) sessionFrame(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 
-	var viewerURL, streamUID, status string
+	var viewerURL, streamUID, status, provName string
 	if err := s.pool.QueryRow(r.Context(), `
-		SELECT COALESCE(viewer_url,''), COALESCE(stream_input_uid,''), status
+		SELECT COALESCE(viewer_url,''), COALESCE(stream_input_uid,''), status, provider
 		FROM sessions WHERE id = $1 AND project_id = $2
-	`, id, projectID).Scan(&viewerURL, &streamUID, &status); err != nil {
+	`, id, projectID).Scan(&viewerURL, &streamUID, &status, &provName); err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "session not found"})
 		return
 	}
@@ -55,7 +55,7 @@ func (s *Server) sessionFrame(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Same UID-segment token scheme as playback; no-op when signing is off.
-	signed, err := s.stream.SignPlaybackURL(thumbURL, streamUID, time.Now().Add(5*time.Minute))
+	signed, err := s.provider(provName).SignPlaybackURL(thumbURL, streamUID, time.Now().Add(5*time.Minute))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
