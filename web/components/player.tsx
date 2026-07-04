@@ -21,30 +21,48 @@ export function Player({ src, onHeartbeat, onLeave }: PlayerProps) {
     const video = videoRef.current;
     if (!video || !src) return;
 
+    // Streams take time to warm up (CF can need 30-60s to publish the first
+    // manifest; MediaMTX a few seconds) and hls.js reports the interim
+    // 204/404/empty responses as FATAL errors. Tear down and retry for up to
+    // ~2 minutes instead of dying during normal startup.
     let hls: Hls | null = null;
-    if (Hls.isSupported()) {
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+    let disposed = false;
+
+    function play() {
+      if (disposed) return;
       hls = new Hls({
         liveDurationInfinity: true,
-        manifestLoadingMaxRetry: 12,
+        manifestLoadingMaxRetry: 6,
         manifestLoadingRetryDelay: 3000,
-        manifestLoadingMaxRetryTimeout: 60000,
+        levelLoadingMaxRetry: 8,
+        fragLoadingMaxRetry: 8,
       });
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setStatus("playing");
         setMessage("live");
       });
       hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data.details === "manifestLoadError") {
-          setMessage("waiting for Cloudflare to build the stream…");
+        if (!data.fatal) {
+          if (data.details === "manifestLoadError") setMessage("waiting for the stream to start…");
           return;
         }
-        if (data.fatal) {
+        hls?.destroy();
+        if (attempts++ < 40) {
+          setMessage(`waiting for the stream to start… (${attempts})`);
+          retryTimer = setTimeout(play, 3000);
+        } else {
           setStatus("error");
           setMessage(`${data.type}/${data.details}`);
         }
       });
       hls.loadSource(src);
-      hls.attachMedia(video);
+      if (video) hls.attachMedia(video);
+    }
+
+    if (Hls.isSupported()) {
+      play();
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
       video.addEventListener("playing", () => {
@@ -57,12 +75,15 @@ export function Player({ src, onHeartbeat, onLeave }: PlayerProps) {
     }
 
     return () => {
+      disposed = true;
+      if (retryTimer) clearTimeout(retryTimer);
       hls?.destroy();
     };
   }, [src]);
 
   useEffect(() => {
     if (!onHeartbeat) return;
+    onHeartbeat();
     const id = setInterval(onHeartbeat, 10000);
     return () => clearInterval(id);
   }, [onHeartbeat]);

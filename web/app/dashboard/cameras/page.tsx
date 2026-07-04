@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { PlayCircle } from "lucide-react";
 import { PageHeader, EmptyState, Table } from "../_ui";
 import { dashFetch, timeAgo, type CameraRow, type EdgeRow } from "@/lib/dashboard-data";
 import { AddCamera } from "./cameras-client";
@@ -28,13 +30,26 @@ export default async function Cameras() {
           cta={edges.length === 0 ? { href: "/dashboard/edges", label: "Provision an edge →" } : undefined}
         />
       ) : (
-        <Table headers={["Name", "Edge", "Camera ID", "Added"]}>
+        <Table headers={["Name", "Edge", "Camera ID", "Added", ""]}>
           {cameras.map((c) => (
             <tr key={c.id}>
               <td className="px-4 py-3 font-medium">{c.name}</td>
               <td className="px-4 py-3 text-neutral-500">{c.edgeName}</td>
               <td className="px-4 py-3 font-mono text-xs text-neutral-500">{c.id}</td>
               <td className="px-4 py-3 text-neutral-500">{timeAgo(c.created_at)}</td>
+              <td className="px-4 py-3 text-right">
+                <Link
+                  href={`/dashboard/watch/${c.id}`}
+                  className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium ${
+                    c.edgeOnline
+                      ? "bg-neutral-900 dark:bg-neutral-50 text-white dark:text-neutral-900"
+                      : "border border-neutral-300 dark:border-neutral-700 text-neutral-400"
+                  }`}
+                >
+                  <PlayCircle className="w-3.5 h-3.5" />
+                  Watch
+                </Link>
+              </td>
             </tr>
           ))}
         </Table>

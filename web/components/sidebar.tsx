@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { LayoutDashboard, Key, Server, Camera, PlayCircle, BookOpen } from "lucide-react";
+import { LayoutDashboard, Key, Server, Camera, PlayCircle, Film, Settings, BookOpen } from "lucide-react";
 
 const nav = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -11,6 +11,8 @@ const nav = [
   { href: "/dashboard/edges", label: "Edges", icon: Server },
   { href: "/dashboard/cameras", label: "Cameras", icon: Camera },
   { href: "/dashboard/sessions", label: "Sessions", icon: PlayCircle },
+  { href: "/dashboard/clips", label: "Clips", icon: Film },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
   { href: "/dashboard/docs", label: "Docs", icon: BookOpen },
 ];
 

@@ -24,10 +24,44 @@ export type SessionRow = {
   ingest: "edge" | "push";
   status: "pending" | "live" | "ended" | "expired";
   protocol: string;
+  provider: string;
   started_at: string;
   last_heartbeat_at: string;
   expires_at: string;
 };
+
+export type AssetRow = {
+  id: string;
+  camera_id?: string;
+  session_id?: string;
+  name?: string;
+  source: "s3" | "cloudflare";
+  content_type: string;
+  size_bytes: number;
+  status: "pending" | "ready";
+  expires_at: string | null;
+  created_at: string;
+  playback_url?: string;
+  download_url?: string;
+};
+
+export type Settings = {
+  stream_provider: string;
+  supports_recordings: boolean;
+  available_providers: { name: string; supports_recordings: boolean }[];
+};
+
+export type Usage = {
+  viewer_minutes_30d: number;
+  clip_count: number;
+  clip_bytes: number;
+};
+
+export function formatBytes(n: number): string {
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
 
 export type KeyRow = {
   id: string;
