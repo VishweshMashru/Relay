@@ -1,20 +1,30 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+// IBM Plex: an engineering corporate identity, not a SaaS default. Mono is
+// the brand voice (headlines, labels, data); Sans carries prose.
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
 
 export const metadata: Metadata = {
-  title: "Relay — on-demand camera streaming API",
+  title: "streamo — camera intelligence",
   description:
-    "Stripe for private cameras. Watch a private RTSP camera from anywhere, on demand, without exposing it to the internet.",
+    "Video infrastructure for cameras, drones, and robots — including the ones behind firewalls. Live streams, clips, and frames for vision models, from one API.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-50">
         <ClerkProvider>{children}</ClerkProvider>
       </body>

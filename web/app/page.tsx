@@ -76,7 +76,7 @@ function SectionHead({ n, title }: { n: string; title: string }) {
   return (
     <div className="flex items-baseline gap-4 border-t border-neutral-900 dark:border-neutral-100 pt-4 mb-10">
       <span className="font-mono text-sm text-neutral-400">{n}</span>
-      <h2 className="text-xl md:text-2xl font-medium tracking-tight">{title}</h2>
+      <h2 className="font-mono text-lg md:text-xl font-medium tracking-tight">{title}</h2>
     </div>
   );
 }
@@ -98,7 +98,7 @@ function Hero() {
       <p className="font-mono text-xs text-neutral-500 mb-6">
         STREAMO — CAMERA INTELLIGENCE · <span className="text-emerald-600 dark:text-emerald-400">API OPERATIONAL</span>
       </p>
-      <h1 className="text-3xl md:text-5xl font-medium tracking-tight leading-tight max-w-3xl">
+      <h1 className="font-mono font-medium text-[1.7rem] md:text-[2.6rem] tracking-tight leading-snug md:leading-snug max-w-3xl">
         Video infrastructure for cameras, drones, and robots — including the ones behind
         firewalls.
       </h1>
@@ -577,7 +577,7 @@ function Closing() {
       <div className="border-t border-neutral-900 dark:border-neutral-100 pt-10 flex flex-col md:flex-row md:items-end justify-between gap-8">
         <div>
           <p className="font-mono text-xs text-neutral-500 mb-3">GET STARTED</p>
-          <p className="text-2xl md:text-3xl font-medium tracking-tight max-w-xl">
+          <p className="font-mono text-xl md:text-2xl font-medium tracking-tight max-w-xl leading-snug">
             A camera on your desk can be live on the internet in the next fifteen minutes.
           </p>
           <p className="mt-3 text-sm text-neutral-500">
