@@ -17,11 +17,18 @@
 
     # Self-hosted media plane (RELAY_STREAM_PROVIDER=selfhosted): HLS and
     # WHIP/WHEP ride the same domain; MediaMTX serves them internally.
+    # handle_path strips the prefix, so MediaMTX thinks it lives at / and
+    # emits absolute Location redirects (e.g. its ?cookieCheck dance, WHEP
+    # session URLs) — rewrite those back under the prefix on the way out.
     handle_path /hls/* {
-        reverse_proxy mediamtx:8888
+        reverse_proxy mediamtx:8888 {
+            header_down Location ^/ /hls/
+        }
     }
     handle_path /webrtc/* {
-        reverse_proxy mediamtx:8889
+        reverse_proxy mediamtx:8889 {
+            header_down Location ^/ /webrtc/
+        }
     }
 
     # Everything else: log + proxy.

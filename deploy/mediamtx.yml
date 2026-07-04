@@ -25,7 +25,7 @@ rtmpAddress: :1935
 # Playback: HLS (proxied through Caddy at /hls/*).
 hls: yes
 hlsAddress: :8888
-hlsAllowOrigin: '*'
+hlsAllowOrigins: ['*']
 
 # WebRTC WHIP/WHEP (proxied through Caddy at /webrtc/*). Requires
 # MTX_WEBRTCADDITIONALHOSTS to be set to the server's public IP/host in
