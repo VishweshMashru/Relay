@@ -153,20 +153,23 @@ func (r *Reaper) sweep(ctx context.Context) (int, error) {
 	// Heartbeat staleness only applies to edge-ingest sessions: a push
 	// session (drone, OBS) may legitimately stream with no browser viewer
 	// attached, so it lives until its TTL or an explicit DELETE.
+	// make_interval instead of ($1 || ' seconds')::interval — the text
+	// concat makes Postgres type the param as text, which pgx refuses to
+	// encode a Go number into.
 	rows, err := r.Pool.Query(ctx, `
 		UPDATE sessions
 		SET status = 'expired'
 		WHERE status IN ('pending', 'live')
 		  AND (
 		    expires_at < now()
-		    OR (ingest = 'edge' AND last_heartbeat_at IS NOT NULL AND last_heartbeat_at < now() - ($1 || ' seconds')::interval)
+		    OR (ingest = 'edge' AND last_heartbeat_at IS NOT NULL AND last_heartbeat_at < now() - make_interval(secs => $1))
 		    -- Never heartbeated: the viewer may still be waiting for CF to
 		    -- build the first manifest, so allow the longer startup grace.
-		    OR (ingest = 'edge' AND last_heartbeat_at IS NULL AND started_at < now() - ($2 || ' seconds')::interval)
+		    OR (ingest = 'edge' AND last_heartbeat_at IS NULL AND started_at < now() - make_interval(secs => $2))
 		  )
 		RETURNING id::text, COALESCE(camera_id::text, ''), COALESCE(stream_input_uid, ''),
 		          project_id::text, record, COALESCE(record_ttl_seconds, 0)
-	`, int(r.StaleAfter.Seconds()), int(r.StartupGrace.Seconds()))
+	`, r.StaleAfter.Seconds(), r.StartupGrace.Seconds())
 	if err != nil {
 		return 0, err
 	}
