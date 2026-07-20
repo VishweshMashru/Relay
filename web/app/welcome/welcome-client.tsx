@@ -31,7 +31,7 @@ export function WelcomeClient({
         </span>
         <h1 className="text-3xl font-medium tracking-tight">Save your API key</h1>
         <p className="text-neutral-600 dark:text-neutral-400">
-          This is the only time we'll show it. Paste it into your app's config or a password
+          This is the only time we’ll show it. Paste it into your app’s config or a password
           manager. If you lose it, create a new one from the dashboard — the old one stops
           working the moment you revoke it.
         </p>
@@ -75,7 +75,7 @@ export function WelcomeClient({
       <div className="flex flex-col gap-3">
         <h2 className="text-lg font-medium">What now?</h2>
         <ol className="flex flex-col gap-2 text-sm text-neutral-600 dark:text-neutral-400 list-decimal list-inside">
-          <li>Store the key as <code className="font-mono text-xs bg-neutral-100 dark:bg-neutral-900 px-1.5 py-0.5 rounded">RELAY_API_KEY</code> in your app's env.</li>
+          <li>Store the key as <code className="font-mono text-xs bg-neutral-100 dark:bg-neutral-900 px-1.5 py-0.5 rounded">RELAY_API_KEY</code> in your app’s env.</li>
           <li>Provision your first edge from the Edges page.</li>
           <li>Register a camera and try a session from your backend.</li>
         </ol>

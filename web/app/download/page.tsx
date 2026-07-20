@@ -29,7 +29,7 @@ export default function DownloadPage() {
           <h1 className="text-3xl md:text-4xl font-medium tracking-tight mt-4">Download the edge agent</h1>
           <p className="text-neutral-600 dark:text-neutral-400 max-w-2xl">
             relay-edge runs on any machine that can reach your camera on its LAN. It connects
-            out via HTTPS — no port forwarding, no public IP — and opens the camera's RTSP
+            out via HTTPS — no port forwarding, no public IP — and opens the camera’s RTSP
             feed only when a session asks for it. RTSP credentials never leave the machine.
           </p>
         </div>

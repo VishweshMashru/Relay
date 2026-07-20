@@ -1,155 +1,110 @@
 import Link from "next/link";
 import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import {
+  ArrowRight,
+  Check,
+  CircleDot,
+  Cloud,
+  Database,
+  Eye,
+  KeyRound,
+  LockKeyhole,
+  Radio,
+  ShieldCheck,
+  TimerReset,
+} from "lucide-react";
 import { Reveal } from "@/components/reveal";
-import { EyeOff, KeyRound, Lock, Timer, Trash2, Unplug } from "lucide-react";
 
-// Landing page: camera intelligence platform. The design motif is the
-// viewfinder — corner brackets, a REC dot, live detection boxes — rendered
-// entirely in CSS. Space Grotesk is the display voice; mono is reserved for
-// data. Dark, layered surfaces; emerald means "live".
+const primaryButton =
+  "inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#174d38] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#103d2c]";
+const secondaryButton =
+  "inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#cfcfc7] bg-white/50 px-5 text-sm font-semibold text-[#1e2c26] transition-colors hover:border-[#9fa59f] hover:bg-white";
 
 export default function Landing() {
   return (
-    <div className="flex flex-1 flex-col bg-[#070808] text-neutral-300 selection:bg-emerald-400/25">
+    <div className="streamo-landing flex min-h-full flex-1 flex-col bg-[#f4f3ee] text-[#1d2823] selection:bg-[#b8dccb]">
       <Nav />
-      <Hero />
-      <StatStrip />
-      <HowItWorks />
-      <Capabilities />
-      <Stack />
-      <Building />
-      <Guarantees />
-      <Pricing />
-      <FAQ />
-      <Closing />
+      <main>
+        <Hero />
+        <ProofStrip />
+        <HowItWorks />
+        <Capabilities />
+        <Security />
+        <UseCases />
+        <Pricing />
+        <FAQ />
+        <Closing />
+      </main>
       <Footer />
     </div>
   );
 }
 
-/* ---------------------------------------------------------------- shared */
-
-function LensMark() {
+function Brand({ inverse = false }: { inverse?: boolean }) {
   return (
-    <span className="relative inline-flex h-4 w-4 items-center justify-center rounded-full border border-neutral-500">
-      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+    <span className="inline-flex items-center gap-2.5">
+      <span
+        aria-hidden
+        className={`relative flex h-7 w-7 items-center justify-center rounded-[9px] border ${
+          inverse ? "border-white/25 bg-white/10" : "border-[#b8c0ba] bg-white/60"
+        }`}
+      >
+        <span className={`h-2.5 w-2.5 rounded-full border ${inverse ? "border-[#9bd3b8]" : "border-[#28684d]"}`} />
+        <span className={`absolute h-1 w-1 rounded-full ${inverse ? "bg-[#9bd3b8]" : "bg-[#28684d]"}`} />
+      </span>
+      <span className={`font-display text-lg font-semibold tracking-[-0.03em] ${inverse ? "text-white" : "text-[#15221c]"}`}>
+        streamo
+      </span>
     </span>
   );
 }
-
-function Brackets({ className = "" }: { className?: string }) {
-  const c = "absolute h-4 w-4 border-emerald-400/70";
-  return (
-    <span aria-hidden className={className}>
-      <span className={`${c} left-0 top-0 border-l-2 border-t-2`} />
-      <span className={`${c} right-0 top-0 border-r-2 border-t-2`} />
-      <span className={`${c} bottom-0 left-0 border-b-2 border-l-2`} />
-      <span className={`${c} bottom-0 right-0 border-b-2 border-r-2`} />
-    </span>
-  );
-}
-
-function SectionHead({
-  eyebrow,
-  title,
-  lede,
-}: {
-  eyebrow: string;
-  title: string;
-  lede?: string;
-}) {
-  return (
-    <div className="mb-12 max-w-2xl">
-      <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.25em] text-emerald-400/90">
-        {eyebrow}
-      </p>
-      <h2 className="font-display text-3xl font-semibold tracking-tight text-neutral-50 md:text-4xl">
-        {title}
-      </h2>
-      {lede && <p className="mt-4 text-[15px] leading-relaxed text-neutral-400">{lede}</p>}
-    </div>
-  );
-}
-
-function StatusChip({ s }: { s: "live" | "in development" | "planned" | "exploring" }) {
-  const styles = {
-    live: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-    "in development": "border-amber-400/30 bg-amber-400/10 text-amber-300",
-    planned: "border-white/10 bg-white/5 text-neutral-500",
-    exploring: "border-sky-400/30 bg-sky-400/10 text-sky-300",
-  }[s];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${styles}`}
-    >
-      {s === "live" && <span className="h-1 w-1 rounded-full bg-emerald-400" />}
-      {s}
-    </span>
-  );
-}
-
-const btnPrimary =
-  "inline-flex items-center justify-center rounded-md bg-emerald-400 px-5 py-2.5 text-sm font-semibold text-neutral-950 shadow-[0_0_28px_rgba(52,211,153,0.28)] transition-colors hover:bg-emerald-300";
-const btnGhost =
-  "inline-flex items-center justify-center rounded-md border border-white/15 px-5 py-2.5 text-sm text-neutral-200 transition-colors hover:border-white/40 hover:text-white";
-
-/* ------------------------------------------------------------------- nav */
 
 function Nav() {
-  const links = [
-    { href: "#how", label: "How it works" },
-    { href: "#capabilities", label: "Capabilities" },
-    { href: "#stack", label: "Platform" },
-    { href: "#building", label: "What's next" },
-    { href: "#pricing", label: "Pricing" },
-  ];
   return (
-    <nav className="sticky top-0 z-40 border-b border-white/5 bg-[#070808]/85 backdrop-blur-md">
-      <div className="mx-auto flex h-15 max-w-6xl items-center justify-between px-6 py-3.5">
-        <Link href="/" className="flex items-center gap-2.5">
-          <LensMark />
-          <span className="font-display text-[17px] font-semibold tracking-tight text-neutral-50">
-            streamo
-          </span>
+    <nav className="sticky top-0 z-40 border-b border-[#dcdcd5]/90 bg-[#f4f3ee]/90 backdrop-blur-xl">
+      <div className="mx-auto flex h-[68px] max-w-7xl items-center justify-between px-5 sm:px-8">
+        <Link href="/" aria-label="Streamo home">
+          <Brand />
         </Link>
-        <div className="flex items-center gap-1 text-sm">
-          {links.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              className="hidden rounded-md px-3 py-1.5 text-neutral-400 transition-colors hover:text-neutral-50 md:inline"
-            >
-              {l.label}
-            </a>
-          ))}
-          <Link
-            href="/download"
-            className="hidden rounded-md px-3 py-1.5 text-neutral-400 transition-colors hover:text-neutral-50 sm:inline"
-          >
+        <div className="hidden items-center gap-7 text-[13px] font-medium text-[#59625d] md:flex">
+          <a href="#product" className="transition-colors hover:text-[#15221c]">
+            Product
+          </a>
+          <a href="#security" className="transition-colors hover:text-[#15221c]">
+            Security
+          </a>
+          <a href="#use-cases" className="transition-colors hover:text-[#15221c]">
+            Use cases
+          </a>
+          <a href="#pricing" className="transition-colors hover:text-[#15221c]">
+            Pricing
+          </a>
+          <Link href="/download" className="transition-colors hover:text-[#15221c]">
             Download
           </Link>
+        </div>
+        <div className="flex items-center gap-2.5">
           <Show when="signed-out">
             <SignInButton mode="modal">
-              <button className="rounded-md px-3 py-1.5 text-neutral-400 transition-colors hover:text-neutral-50">
+              <button className="hidden h-9 px-3 text-sm font-medium text-[#4d5751] transition-colors hover:text-[#15221c] sm:block">
                 Sign in
               </button>
             </SignInButton>
             <SignUpButton mode="modal">
-              <button className="ml-2 rounded-md bg-emerald-400 px-3.5 py-1.5 text-sm font-semibold text-neutral-950 transition-colors hover:bg-emerald-300">
-                Get a key
+              <button className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#1b2a23] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#174d38]">
+                Get an API key
+                <ArrowRight size={14} />
               </button>
             </SignUpButton>
           </Show>
           <Show when="signed-in">
             <Link
               href="/dashboard"
-              className="ml-2 rounded-md bg-emerald-400 px-3.5 py-1.5 text-sm font-semibold text-neutral-950 transition-colors hover:bg-emerald-300"
+              className="inline-flex h-9 items-center rounded-lg bg-[#1b2a23] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#174d38]"
             >
               Dashboard
             </Link>
-            <span className="ml-2 flex items-center">
-              <UserButton />
-            </span>
+            <UserButton />
           </Show>
         </div>
       </div>
@@ -157,369 +112,287 @@ function Nav() {
   );
 }
 
-/* ------------------------------------------------------------------ hero */
-
 function Hero() {
   return (
-    <header className="relative overflow-hidden">
-      <div className="bg-grid pointer-events-none absolute inset-0" aria-hidden />
-      <div
-        className="pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[820px] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-[140px]"
-        aria-hidden
-      />
-      <div className="relative mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-14 px-6 pb-20 pt-16 md:pt-24 lg:grid-cols-[1.05fr_1fr]">
-        <div>
+    <header className="landing-wash relative overflow-hidden border-b border-[#deded7]">
+      <div className="mx-auto max-w-7xl px-5 pb-20 pt-16 sm:px-8 sm:pb-28 sm:pt-24 lg:pb-32 lg:pt-28">
+        <div className="relative z-10 max-w-5xl">
           <Reveal>
-            <p className="mb-6 inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 font-mono text-[11px] tracking-widest text-neutral-400">
-              CAMERA INTELLIGENCE PLATFORM
-              <span className="inline-flex items-center gap-1.5 text-emerald-400">
-                <span className="rec h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                API OPERATIONAL
-              </span>
-            </p>
-            <h1 className="font-display text-4xl font-semibold leading-[1.06] tracking-tight text-neutral-50 md:text-[3.4rem]">
-              Turn any camera into something your software can{" "}
-              <span className="bg-gradient-to-r from-emerald-300 to-teal-200 bg-clip-text text-transparent">
-                understand
-              </span>
-              .
+            <div className="mb-7 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#416654]">
+              <span className="h-px w-8 bg-[#5c8873]" />
+              Video infrastructure for physical devices
+            </div>
+            <h1 className="font-display text-[3rem] font-semibold leading-[0.98] tracking-[-0.055em] text-[#122019] sm:text-[4.4rem] lg:text-[5.45rem]">
+              Live video from cameras your network can’t reach.
             </h1>
           </Reveal>
-          <Reveal delay={120}>
-            <p className="mt-6 max-w-xl text-base leading-relaxed text-neutral-400 md:text-lg">
-              One API to stream any camera, drone, or robot — even behind firewalls and NAT. A
-              small agent dials out from the local network; streams start when someone watches
-              and stop when they leave; clips are kept exactly as long as you decide. Vision
-              models and AI agents can look at any frame.
-            </p>
-            <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Show when="signed-out">
-                <SignUpButton mode="modal">
-                  <button className={btnPrimary}>Get an API key →</button>
-                </SignUpButton>
-              </Show>
-              <Show when="signed-in">
-                <Link href="/dashboard" className={btnPrimary}>
-                  Open dashboard →
-                </Link>
-              </Show>
-              <Link href="/showcase" className={btnGhost}>
-                Watch a live camera
-              </Link>
-              <a
-                href="https://github.com/VishweshMashru/Relay"
-                className="px-2 text-sm text-neutral-500 transition-colors hover:text-neutral-100"
-              >
-                Source ↗
-              </a>
+          <Reveal delay={100}>
+            <div className="mt-9 grid max-w-4xl gap-8 border-t border-[#d5d8d1] pt-7 sm:grid-cols-[1fr_auto] sm:items-end sm:gap-12">
+              <div>
+                <p className="max-w-2xl text-base leading-7 text-[#5b645f] sm:text-lg sm:leading-8">
+                  Streamo turns RTSP cameras, drones, and robots into secure, on-demand streams and clips. One lightweight edge agent, one API, and no port forwarding.
+                </p>
+                <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[#747b77]">
+                  <span>RTSP · RTMPS · HLS · WebRTC</span>
+                  <a
+                    href="https://github.com/VishweshMashru/Relay"
+                    className="border-b border-[#bcc2bd] pb-0.5 transition-colors hover:border-[#496b59] hover:text-[#244d38]"
+                  >
+                    Open source edge agent
+                  </a>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3 sm:justify-end">
+                <Show when="signed-out">
+                  <SignUpButton mode="modal">
+                    <button className={primaryButton}>
+                      Start with an API key <ArrowRight size={16} />
+                    </button>
+                  </SignUpButton>
+                </Show>
+                <Show when="signed-in">
+                  <Link href="/dashboard" className={primaryButton}>
+                    Open dashboard <ArrowRight size={16} />
+                  </Link>
+                </Show>
+                <a href="#how" className={secondaryButton}>
+                  See how it works
+                </a>
+              </div>
             </div>
-            <p className="mt-6 font-mono text-xs text-neutral-600">
-              $ curl -fsSL streamo.in/install.sh | sh
-              <span className="ml-3 text-neutral-700"># the whole edge install</span>
-            </p>
           </Reveal>
         </div>
-        <Reveal delay={200}>
-          <SessionPanel />
+        <Reveal delay={180}>
+          <div className="mt-16 flex items-center gap-4 border-t border-[#d5d8d1] pt-5 text-[11px] text-[#78807b] sm:mt-20">
+            <span className="font-mono uppercase tracking-[0.12em] text-[#466a58]">A direct media path</span>
+            <span className="h-px flex-1 bg-[#d5d8d1]" />
+            <span className="hidden sm:block">camera → edge → media plane → viewer</span>
+          </div>
         </Reveal>
       </div>
     </header>
   );
 }
 
-/* The hero visual is the product itself: the API exchange that starts a
-   stream, reproduced from the first production session. No mockups. */
-function SessionPanel() {
-  return (
-    <div className="relative">
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-black/50 shadow-2xl shadow-black/60">
-        <div className="flex items-center justify-between border-b border-white/5 px-4 py-2.5 font-mono text-[11px] text-neutral-500">
-          <span>first production stream — unedited</span>
-          <span className="flex items-center gap-1.5 text-emerald-400">
-            <span className="rec h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            api.streamo.in
-          </span>
-        </div>
-        <pre className="overflow-x-auto p-5 font-mono text-[12.5px] leading-6 text-neutral-400">
-{`$ curl -s https://api.streamo.in/v1/sessions -X POST \\
-    -H "Authorization: Bearer rk_live_••••" \\
-    -d '{"camera_id": "730b91a9-4fd8-4f1d-846b-14a57e953112"}'
-`}
-          <span className="text-neutral-600">{`{
-  "id": "5c6a196f-b59c-4dfb-8628-9d5dbaea6d70",
-  "status": "pending",`}</span>
-          <span className="text-emerald-300/90">{`
-  "viewer_url": "https://customer-•••.cloudflarestream.com/…/video.m3u8",
-  "viewer_token": "eyJhbGciOiJIUzI1NiIs…",`}</span>
-          <span className="text-neutral-600">{`
-  "expires_at": "2026-07-04T07:45:10Z"
-}`}</span>
-          {"\n\n"}
-          <span className="text-neutral-600">{`# t+5s   edge agent opened the camera's RTSP feed
-# t+15s  manifest live — video playing in the browser`}</span>
-        </pre>
-      </div>
-      <p className="mt-3 text-center font-mono text-[11px] text-neutral-600">
-        edge agent on the LAN · outbound HTTPS only · nothing port-forwarded
-      </p>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------- stat strip */
-
-function StatStrip() {
-  const stats = [
-    ["<1s", "glass-to-glass over WebRTC"],
-    ["0", "ports forwarded, ever"],
-    ["$0", "for a camera nobody is watching"],
-    ["1", "API key to stream, store, understand"],
+function ProofStrip() {
+  const items = [
+    ["Outbound only", "No VPN or port forwarding"],
+    ["On demand", "Nothing runs while idle"],
+    ["Your choice", "Cloud CDN or self-hosted"],
+    ["Private by default", "Signed, expiring playback"],
   ];
   return (
-    <section className="border-y border-white/5 bg-white/[0.015]">
-      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-px px-6 md:grid-cols-4">
-        {stats.map(([n, label], i) => (
-          <Reveal key={label} delay={i * 60}>
-            <div className="py-8 pr-6">
-              <div className="font-display text-3xl font-semibold text-neutral-50 md:text-4xl">
-                {n}
-              </div>
-              <div className="mt-1.5 text-sm text-neutral-500">{label}</div>
-            </div>
-          </Reveal>
+    <section className="border-b border-[#deded7] bg-[#efeee8]">
+      <div className="mx-auto grid max-w-7xl grid-cols-2 px-5 sm:px-8 lg:grid-cols-4">
+        {items.map(([title, body], index) => (
+          <div
+            key={title}
+            className={`py-6 ${index % 2 ? "pl-5" : "pr-5"} ${index > 0 ? "lg:border-l lg:border-[#d8d8d1] lg:pl-7" : ""}`}
+          >
+            <p className="text-xs font-semibold text-[#26372f]">{title}</p>
+            <p className="mt-1 text-xs leading-5 text-[#747b77]">{body}</p>
+          </div>
         ))}
       </div>
     </section>
   );
 }
 
-/* ------------------------------------------------------------ how it works */
+function SectionIntro({
+  label,
+  title,
+  body,
+  inverse = false,
+}: {
+  label: string;
+  title: string;
+  body?: string;
+  inverse?: boolean;
+}) {
+  return (
+    <div className="max-w-2xl">
+      <p className={`text-xs font-semibold uppercase tracking-[0.16em] ${inverse ? "text-[#8bc1a6]" : "text-[#48715d]"}`}>
+        {label}
+      </p>
+      <h2 className={`mt-4 font-display text-3xl font-semibold leading-[1.05] tracking-[-0.045em] sm:text-5xl ${inverse ? "text-white" : "text-[#15221c]"}`}>
+        {title}
+      </h2>
+      {body && <p className={`mt-5 text-base leading-7 ${inverse ? "text-white/55" : "text-[#626a65]"}`}>{body}</p>}
+    </div>
+  );
+}
 
 function HowItWorks() {
   const steps = [
     {
       n: "01",
-      title: "Install the agent",
-      body:
-        "One command on any machine that can reach the camera's LAN. It connects outbound over HTTPS only — RTSP credentials never leave that machine.",
-      code: "curl -fsSL streamo.in/install.sh | sh",
+      title: "Install beside the camera",
+      body: "Run the edge agent on any Windows, Linux, or macOS machine that can reach the camera over the LAN. Camera credentials stay there.",
+      meta: "One command · automatic updates",
     },
     {
       n: "02",
-      title: "Register cameras",
-      body:
-        "Cameras get an ID through the API or dashboard. The cloud stores a name; the RTSP URL and password stay on the edge.",
-      code: "POST /v1/edges/{id}/cameras",
+      title: "Create a session",
+      body: "Your backend asks for a stream. Streamo provisions the media path and wakes the edge over its existing outbound HTTPS connection.",
+      meta: "POST /v1/sessions",
     },
     {
       n: "03",
-      title: "Stream on demand",
-      body:
-        "Your backend creates a session; the agent opens the camera and pushes the feed; your frontend embeds the returned URL. Viewer leaves → everything stops.",
-      code: "POST /v1/sessions",
+      title: "Embed the returned URL",
+      body: "Play signed HLS in your application, request a JPEG frame for an agent, or keep the recording as a clip with an explicit retention period.",
+      meta: "Viewer leaves · stream stops",
     },
   ];
   return (
-    <section id="how" className="mx-auto w-full max-w-6xl px-6 py-24">
-      <Reveal>
-        <SectionHead
-          eyebrow="How it works"
-          title="No port forwarding. No VPNs. No static IPs."
-          lede="The agent on the local network dials out, so the camera is reachable without the network ever being open. Video moves edge → CDN; it never transits the control plane."
-        />
-      </Reveal>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {steps.map((s, i) => (
-          <Reveal key={s.n} delay={i * 90}>
-            <div className="group relative h-full rounded-xl border border-white/8 bg-white/[0.02] p-6 transition-colors hover:border-emerald-400/30">
-              <div className="font-mono text-xs text-emerald-400/80">{s.n}</div>
-              <h3 className="mt-3 font-display text-lg font-semibold text-neutral-50">
-                {s.title}
-              </h3>
-              <p className="mt-2.5 text-sm leading-relaxed text-neutral-400">{s.body}</p>
-              <code className="mt-4 block truncate rounded-md border border-white/5 bg-black/40 px-3 py-2 font-mono text-[11.5px] text-neutral-500">
-                {s.code}
-              </code>
+    <section id="how" className="bg-[#f8f7f3] py-24 sm:py-32">
+      <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-8 lg:grid-cols-[0.82fr_1.18fr] lg:gap-24">
+        <Reveal>
+          <div className="lg:sticky lg:top-28">
+            <SectionIntro
+              label="How it works"
+              title="A private route out, opened only when it’s needed."
+              body="The control plane coordinates access. The video itself moves directly from your edge to the media plane, never through Streamo’s API servers."
+            />
+            <div className="mt-8 rounded-xl border border-[#d9dbd5] bg-[#f1f1ec] p-4 font-mono text-[11px] leading-5 text-[#5f6963]">
+              <span className="text-[#28684d]">$</span> curl -fsSL streamo.in/install.sh | sh
             </div>
-          </Reveal>
-        ))}
-      </div>
-      <Reveal delay={150}>
-        <div className="mt-4 overflow-hidden rounded-xl border border-white/8 bg-black/40">
-          <div className="border-b border-white/5 px-5 py-2.5 font-mono text-[11px] text-neutral-600">
-            architecture — video never transits the control plane
           </div>
-          <pre className="overflow-x-auto p-5 font-mono text-[11.5px] leading-relaxed text-neutral-500 md:text-xs">
-{`  CUSTOMER NETWORK                CONTROL PLANE                  YOUR APP
-  ────────────────                ─────────────                  ────────
-
-  ┌────────┐  RTSP   ┌────────┐   HTTPS    ┌───────────┐  REST   ┌─────────┐
-  │ Camera ├────────▶│ Edge   ├───────────▶│ streamo   │◀────────┤ Backend │
-  └────────┘  (LAN)  │ agent  │ (out only) │ API       │  rk_…   └────┬────┘
-                     └──┬──┬──┘            └───────────┘              │
-                 live │     │ clips                              embeds URL
-                      ▼     ▼                                         ▼
-              ┌───────────┐ ┌──────────────┐   tokenized HLS   ┌─────────┐
-              │ Media     │ │ Blob storage │──────────────────▶│ Viewer  │
-              │ plane     │ │ (TTL'd)      │   signed MP4      └─────────┘
-              └───────────┘ └──────────────┘
-
-  Media plane per project, switchable at runtime from the dashboard:
-  Cloudflare Stream (global CDN, recordings, signed URLs) or a
-  MediaMTX server you host (flat cost, lower latency).`}
-          </pre>
+        </Reveal>
+        <div>
+          {steps.map((step, index) => (
+            <Reveal key={step.n} delay={index * 70}>
+              <article className="grid gap-4 border-t border-[#d9d9d2] py-9 sm:grid-cols-[56px_1fr_auto] sm:gap-7 sm:py-11">
+                <span className="font-mono text-xs text-[#668070]">{step.n}</span>
+                <div>
+                  <h3 className="font-display text-xl font-semibold tracking-[-0.025em] text-[#18251f] sm:text-2xl">
+                    {step.title}
+                  </h3>
+                  <p className="mt-3 max-w-xl text-sm leading-6 text-[#626b66] sm:text-[15px]">{step.body}</p>
+                </div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-[#87908a] sm:pt-1 sm:text-right">
+                  {step.meta}
+                </p>
+              </article>
+            </Reveal>
+          ))}
+          <div className="border-t border-[#d9d9d2]" />
         </div>
-      </Reveal>
+      </div>
     </section>
   );
 }
-
-/* ------------------------------------------------------------ capabilities */
 
 function Capabilities() {
-  const caps = [
+  const capabilities = [
     {
-      name: "Live sessions",
-      api: "POST /v1/sessions",
-      desc: "Start a stream from a registered camera on demand. The edge opens RTSP only while a session exists; idle cameras cost nothing. Tokenized HLS playback per viewer.",
-      s: "live" as const,
+      icon: Radio,
+      title: "Live sessions",
+      body: "Open an RTSP camera only while someone is watching. Return tokenized HLS for the browser, with automatic teardown when heartbeats stop.",
+      code: "POST /v1/sessions",
     },
     {
-      name: "Push ingest",
-      api: '{"ingest":"push"}',
-      desc: "No agent: the API returns an RTMPS URL and any encoder — a DJI controller, OBS, a robot — streams straight to it.",
-      s: "live" as const,
+      icon: Cloud,
+      title: "Push ingest",
+      body: "Skip the edge entirely for drones, OBS, phones, or robots. Publish over RTMPS—or WHIP for sub-second WebRTC playback.",
+      code: '{ "ingest": "push" }',
     },
     {
-      name: "Sub-second WebRTC",
-      api: '{"protocol":"webrtc"}',
-      desc: "WHIP in, WHEP out for push sessions. Under one second glass-to-glass — suited to teleop-assist viewing.",
-      s: "live" as const,
+      icon: Database,
+      title: "Clips and recordings",
+      body: "Upload clips directly to S3-compatible storage or keep a live session recording. Retention belongs to each asset, not an account-wide policy.",
+      code: "POST /v1/assets",
     },
     {
-      name: "Clips with TTLs",
-      api: "POST /v1/assets",
-      desc: "Store event clips with per-clip retention. Bytes go directly to storage over presigned URLs; playback and download links are signed on fetch.",
-      s: "live" as const,
-    },
-    {
-      name: "Record from live",
-      api: '{"record": true}',
-      desc: "A session's recording becomes a clip automatically at teardown, with its own retention clock.",
-      s: "live" as const,
-    },
-    {
-      name: "Frames for AI",
-      api: "GET …/frame.jpg",
-      desc: "The current frame as a JPEG — for vision models and agents that need to look, not watch. An MCP server ships in the repo.",
-      s: "live" as const,
+      icon: Eye,
+      title: "Frames for AI",
+      body: "Request the current frame as a JPEG. The included MCP server lets an agent find a camera, look once, and close the session when it is done.",
+      code: "GET …/frame.jpg",
     },
   ];
   return (
-    <section id="capabilities" className="mx-auto w-full max-w-6xl px-6 py-24">
-      <Reveal>
-        <SectionHead
-          eyebrow="Capabilities"
-          title="Everything between the lens and your code."
-          lede="Plain REST with bearer keys. Every capability below is in production."
-        />
-      </Reveal>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {caps.map((c, i) => (
-          <Reveal key={c.name} delay={Math.min(i * 60, 240)}>
-            <div className="group relative h-full rounded-xl border border-white/8 bg-white/[0.02] p-6 transition-colors hover:border-emerald-400/30">
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="font-display text-base font-semibold text-neutral-50">{c.name}</h3>
-                <StatusChip s={c.s} />
-              </div>
-              <code className="mt-3 inline-block rounded-md border border-white/5 bg-black/40 px-2.5 py-1 font-mono text-[11px] text-emerald-300/80">
-                {c.api}
-              </code>
-              <p className="mt-3 text-sm leading-relaxed text-neutral-400">{c.desc}</p>
-            </div>
-          </Reveal>
-        ))}
-        <Reveal delay={300}>
-          <div className="relative h-full rounded-xl border border-amber-400/20 bg-amber-400/[0.03] p-6 sm:col-span-2 lg:col-span-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="max-w-2xl">
-                <h3 className="font-display text-base font-semibold text-neutral-50">
-                  Detections
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-neutral-400">
-                  Open, lightweight vision models — intrusion, PPE, fire and smoke — running
-                  against your streams, results delivered as events through webhooks and{" "}
-                  <code className="font-mono text-[12px] text-amber-300/90">/v1/detections</code>.
-                  This is the Understand layer arriving in the same API.
-                </p>
-              </div>
-              <StatusChip s="in development" />
-            </div>
+    <section id="product" className="border-y border-[#26382f] bg-[#17231d] py-24 text-white sm:py-32">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+        <Reveal>
+          <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
+            <SectionIntro
+              inverse
+              label="The product"
+              title="One API across live and stored video."
+              body="Use only the pieces you need. Every endpoint is scoped to a project key, and every live session carries its own expiry."
+            />
+            <Link
+              href="/showcase"
+              className="inline-flex items-center gap-2 self-start border-b border-white/25 pb-1 text-sm font-medium text-white transition-colors hover:border-white lg:self-auto"
+            >
+              See the reference viewer <ArrowRight size={15} />
+            </Link>
           </div>
         </Reveal>
+        <div className="mt-16 grid border-y border-white/10 md:grid-cols-2">
+          {capabilities.map((item, index) => (
+            <Reveal key={item.title} delay={(index % 2) * 70}>
+              <article
+                className={`min-h-full py-9 md:p-10 ${index % 2 === 0 ? "md:border-r md:border-white/10" : "md:pl-12"} ${index > 1 ? "border-t border-white/10" : index === 1 ? "border-t border-white/10 md:border-t-0" : ""}`}
+              >
+                <item.icon size={20} strokeWidth={1.6} className="text-[#8dc5a9]" />
+                <h3 className="mt-8 font-display text-2xl font-semibold tracking-[-0.03em]">{item.title}</h3>
+                <p className="mt-3 max-w-lg text-sm leading-6 text-white/55">{item.body}</p>
+                <code className="mt-7 inline-block rounded-md bg-black/20 px-2.5 py-1.5 font-mono text-[10px] text-[#9ac8b0]">
+                  {item.code}
+                </code>
+              </article>
+            </Reveal>
+          ))}
+        </div>
+        <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 text-xs text-white/40">
+          <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#83c6a3]" /> Cloudflare Stream</span>
+          <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#83c6a3]" /> Self-hosted MediaMTX</span>
+          <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#83c6a3]" /> S3-compatible storage</span>
+          <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#83c6a3]" /> Plain REST + bearer keys</span>
+        </div>
       </div>
     </section>
   );
 }
 
-/* ------------------------------------------------------------------ stack */
-
-function Stack() {
-  const layers = [
-    {
-      n: "L1",
-      name: "See",
-      s: "live" as const,
-      desc: "The video layer. Live streams, clips, and frames from any device on any network — everything above, in production today.",
-    },
-    {
-      n: "L2",
-      name: "Understand",
-      s: "in development" as const,
-      desc: "Open, lightweight vision models trained for specific jobs — intrusion, PPE, fire and smoke — exposed through the same API. The MCP server, which lets AI agents look at a camera, is the first shipped piece.",
-    },
-    {
-      n: "L3",
-      name: "Act",
-      s: "live" as const,
-      desc: "Products assembled from the layers below. Foreman turns factory CCTV into safety and operations intelligence — in production today. Monitoring dashboards and BYO-camera security are planned on the same stack.",
-    },
-  ];
+function Security() {
+  const promises = [
+    [LockKeyhole, "Credentials stay local", "RTSP URLs and passwords live on the edge machine. The cloud stores only the camera name and ID."],
+    [TimerReset, "Sessions expire", "A hard TTL and viewer heartbeats ensure a stream cannot run—or bill—indefinitely."],
+    [KeyRound, "Granular revocation", "Revoke a project API key or rotate one edge token without disturbing the rest of the fleet."],
+    [ShieldCheck, "Playback is short-lived", "Viewer tokens and signed playback URLs expire with the session that created them."],
+  ] as const;
   return (
-    <section id="stack" className="relative overflow-hidden border-y border-white/5 bg-white/[0.015]">
-      <div
-        className="pointer-events-none absolute -right-32 top-1/3 h-[380px] w-[520px] rounded-full bg-emerald-500/[0.06] blur-[120px]"
-        aria-hidden
-      />
-      <div className="relative mx-auto w-full max-w-6xl px-6 py-24">
+    <section id="security" className="bg-[#f4f3ee] py-24 sm:py-32">
+      <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-8 lg:grid-cols-[0.95fr_1.05fr] lg:gap-24">
         <Reveal>
-          <SectionHead
-            eyebrow="The platform"
-            title="One company, three layers."
-            lede="Streamo is a camera intelligence company. The API is the bottom of the stack, and each layer is a customer of the one below it — starting with our own products."
-          />
-        </Reveal>
-        <div className="relative flex flex-col gap-4">
-          <div
-            className="absolute bottom-8 left-[27px] top-8 hidden w-px bg-gradient-to-b from-emerald-400/40 via-white/10 to-emerald-400/40 md:block"
-            aria-hidden
-          />
-          {layers.map((l, i) => (
-            <Reveal key={l.n} delay={i * 100}>
-              <div
-                className={`relative rounded-xl border border-white/8 bg-[#0a0c0c] p-6 transition-colors hover:border-emerald-400/30 md:p-7 ${
-                  ["md:mr-40", "md:ml-20 md:mr-20", "md:ml-40"][i]
-                }`}
-              >
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-                  <span className="font-mono text-xs text-emerald-400/70">{l.n}</span>
-                  <h3 className="font-display text-2xl font-semibold tracking-tight text-neutral-50">
-                    {l.name}
-                  </h3>
-                  <StatusChip s={l.s} />
-                </div>
-                <p className="mt-3 max-w-3xl text-sm leading-relaxed text-neutral-400">{l.desc}</p>
+          <div>
+            <SectionIntro
+              label="Security model"
+              title="The safest stream is the one that isn’t running."
+              body="Streamo is built around temporary access. Idle cameras stay private, live sessions are bounded, and stored video exists only when you explicitly keep it."
+            />
+            <div className="mt-10 overflow-hidden rounded-2xl border border-[#cbd0ca] bg-[#e8ebe5]">
+              <div className="flex items-center gap-3 border-b border-[#cbd0ca] px-5 py-4 text-xs font-semibold text-[#304b3d]">
+                <CircleDot size={14} /> Media path
               </div>
+              <div className="flex items-center justify-between gap-3 px-5 py-7 text-center text-xs text-[#44534b]">
+                <span>Camera</span><ArrowRight size={14} className="text-[#839089]" /><span>Edge agent</span><ArrowRight size={14} className="text-[#839089]" /><span>Media plane</span><ArrowRight size={14} className="text-[#839089]" /><span>Viewer</span>
+              </div>
+              <div className="border-t border-[#cbd0ca] bg-white/45 px-5 py-3 text-center text-[11px] text-[#66716a]">
+                The control plane coordinates this path. It is not in it.
+              </div>
+            </div>
+          </div>
+        </Reveal>
+        <div className="grid gap-8 sm:grid-cols-2">
+          {promises.map(([Icon, title, body], index) => (
+            <Reveal key={title} delay={(index % 2) * 70}>
+              <article className="border-t border-[#ced1ca] pt-6">
+                <Icon size={19} strokeWidth={1.6} className="text-[#346c50]" />
+                <h3 className="mt-6 font-display text-lg font-semibold tracking-[-0.02em] text-[#19261f]">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#68706c]">{body}</p>
+              </article>
             </Reveal>
           ))}
         </div>
@@ -528,351 +401,128 @@ function Stack() {
   );
 }
 
-/* ----------------------------------------------------- what we're building */
-
-function Building() {
-  const items: {
-    name: string;
-    s: "live" | "in development" | "planned" | "exploring";
-    body: string;
-  }[] = [
-    {
-      name: "Foreman — factory intelligence",
-      s: "live",
-      body: "Our own product, built on this exact API: factory CCTV in, safety and operations intelligence out. In production today.",
-    },
-    {
-      name: "Open vision models",
-      s: "in development",
-      body: "Lightweight, job-specific, open-source: intrusion, protective equipment, fire and smoke, packages, falls, vehicles. Delivered as events through webhooks and /v1/detections.",
-    },
-    {
-      name: "Drone operations",
-      s: "in development",
-      body: "AI on live drone feeds: stream from the controller with no agent, run detections mid-flight, archive mission clips. Drone-in-a-box patrol monitoring follows.",
-    },
-    {
-      name: "Dashcam intelligence",
-      s: "in development",
-      body: "Fleet dashcams as streaming cameras: live view of any vehicle, incident clips on harsh events, retention you control instead of an SD card.",
-    },
-    {
-      name: "Home & small-business security",
-      s: "in development",
-      body: "BYO-camera security on hardware people already own: person at the door, package left, smoke detected — an alert with the clip attached. No NVR.",
-    },
-    {
-      name: "Site monitoring",
-      s: "planned",
-      body: "Construction and warehouses: progress timelapses, PPE compliance, after-hours intrusion. The Foreman architecture wearing different clothes.",
-    },
-    {
-      name: "Robot fleet views",
-      s: "planned",
-      body: "One pane for every camera on every robot: teleop-assist under a second, incident capture, and training data flowing back to physical-AI labs.",
-    },
-    {
-      name: "Video search",
-      s: "exploring",
-      body: "Ask your cameras questions — “every truck that entered after 8pm” — natural-language search across live streams and stored clips.",
-    },
-    {
-      name: "Alarm verification",
-      s: "exploring",
-      body: "For monitoring centers: a sensor trips, we pull the frame, run the model, and attach visual confirmation before anyone dispatches a guard.",
-    },
+function UseCases() {
+  const cases = [
+    ["Factories & warehouses", "Open existing CCTV only for safety reviews, incident response, or operational tools."],
+    ["Drones & robots", "Push live video directly from an encoder, with WebRTC when operators need lower latency."],
+    ["Fleet & field devices", "Give every vehicle or remote device a consistent streaming and clip API."],
   ];
   return (
-    <section id="building" className="mx-auto w-full max-w-6xl px-6 py-24">
-      <Reveal>
-        <SectionHead
-          eyebrow="Now & next"
-          title="What we're building."
-          lede="Products going up on top of the platform — ours, and the directions we're headed. Statuses are real: live is in production, in development is being built now, planned is committed, exploring is us thinking out loud."
-        />
-      </Reveal>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((c, i) => (
-          <Reveal key={c.name} delay={Math.min((i % 3) * 70, 210)}>
-            <div className="h-full rounded-xl border border-white/8 bg-white/[0.02] p-6 transition-colors hover:border-emerald-400/30">
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="font-display text-base font-semibold text-neutral-50">{c.name}</h3>
-                <StatusChip s={c.s} />
-              </div>
-              <p className="mt-2.5 text-sm leading-relaxed text-neutral-400">{c.body}</p>
-            </div>
-          </Reveal>
-        ))}
-      </div>
-      <Reveal delay={200}>
-        <p className="mt-8 text-sm text-neutral-500">
-          Design partners steer what ships next — especially in the drone and dashcam tracks.{" "}
-          <a
-            href="mailto:hello@streamo.in"
-            className="text-neutral-300 underline underline-offset-4 transition-colors hover:text-emerald-300"
-          >
-            hello@streamo.in
-          </a>
-        </p>
-      </Reveal>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------- guarantees */
-
-function Guarantees() {
-  const props = [
-    {
-      icon: Unplug,
-      k: "No inbound connectivity",
-      v: "The edge agent only dials out over HTTPS. No port forwarding, no public IPs, no VPN.",
-    },
-    {
-      icon: KeyRound,
-      k: "Credentials stay on the LAN",
-      v: "RTSP URLs and passwords live in a file on the edge machine. The cloud stores camera names and IDs.",
-    },
-    {
-      icon: Timer,
-      k: "Streams are ephemeral",
-      v: "Sessions exist while watched. Heartbeats stop → the stream is torn down within 30 seconds, server-side.",
-    },
-    {
-      icon: Lock,
-      k: "Playback is tokenized",
-      v: "Every viewer gets a per-session token; stream URLs are signed and expire with the session.",
-    },
-    {
-      icon: EyeOff,
-      k: "Revocation is granular",
-      v: "Any API key, and any single edge's credential, can be revoked without touching the rest.",
-    },
-    {
-      icon: Trash2,
-      k: "Retention is explicit",
-      v: "Live video is not stored. Clips persist exactly as long as their TTL, then delete themselves.",
-    },
-  ];
-  return (
-    <section className="mx-auto w-full max-w-6xl px-6 pb-24">
-      <Reveal>
-        <SectionHead
-          eyebrow="Design guarantees"
-          title="Cameras are sensitive. The defaults act like it."
-        />
-      </Reveal>
-      <div className="grid grid-cols-1 gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
-        {props.map((p, i) => (
-          <Reveal key={p.k} delay={Math.min(i * 60, 240)}>
-            <div className="flex gap-4">
-              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/8 bg-white/[0.03] text-emerald-300">
-                <p.icon size={16} strokeWidth={1.75} />
-              </span>
-              <div>
-                <div className="text-sm font-medium text-neutral-100">{p.k}</div>
-                <p className="mt-1.5 text-sm leading-relaxed text-neutral-400">{p.v}</p>
-              </div>
-            </div>
-          </Reveal>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ---------------------------------------------------------------- pricing */
-
-function Pricing() {
-  const tiers = [
-    {
-      name: "Free",
-      price: "$0",
-      unit: "",
-      hot: false,
-      lines: ["100 viewer-minutes / month", "1 GB clip storage", "1 edge, unlimited cameras", "Community support"],
-      cta: "Start free",
-    },
-    {
-      name: "Usage",
-      price: "$0.005",
-      unit: "per viewer-minute",
-      hot: true,
-      lines: [
-        "No minimum, no per-camera fee",
-        "Clip storage $0.02 / GB-month",
-        "Unlimited edges and cameras",
-        "Self-hosted media plane option",
-        "Email support",
-      ],
-      cta: "Get an API key",
-    },
-    {
-      name: "Enterprise",
-      price: "Custom",
-      unit: "",
-      hot: false,
-      lines: ["Dedicated infrastructure, SLA", "BYO storage and media servers", "SSO, audit logs", "Priority support"],
-      cta: "hello@streamo.in",
-    },
-  ];
-  return (
-    <section id="pricing" className="mx-auto w-full max-w-6xl px-6 py-24">
-      <Reveal>
-        <SectionHead
-          eyebrow="Pricing"
-          title="Billed on what moves."
-          lede="Minutes watched and gigabytes stored. Idle infrastructure is free — an unwatched camera costs nothing."
-        />
-      </Reveal>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {tiers.map((t, i) => (
-          <Reveal key={t.name} delay={i * 90} className="flex">
-            <div
-              className={`flex flex-1 flex-col gap-5 rounded-xl border p-7 ${
-                t.hot
-                  ? "border-emerald-400/40 bg-emerald-400/[0.04] shadow-[0_0_40px_rgba(52,211,153,0.08)]"
-                  : "border-white/8 bg-white/[0.02]"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-500">
-                  {t.name}
-                </div>
-                {t.hot && (
-                  <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-emerald-300">
-                    pay as you go
-                  </span>
-                )}
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="font-display text-4xl font-semibold text-neutral-50">
-                  {t.price}
-                </span>
-                {t.unit && <span className="font-mono text-xs text-neutral-500">{t.unit}</span>}
-              </div>
-              <ul className="flex flex-col gap-2 text-sm text-neutral-400">
-                {t.lines.map((l) => (
-                  <li key={l} className="flex items-start gap-2.5">
-                    <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-emerald-400/60" />
-                    {l}
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-auto pt-2">
-                {t.name === "Enterprise" ? (
-                  <a href="mailto:hello@streamo.in" className={`${btnGhost} w-full`}>
-                    {t.cta}
-                  </a>
-                ) : (
-                  <Show when="signed-out">
-                    <SignUpButton mode="modal">
-                      <button className={`${t.hot ? btnPrimary : btnGhost} w-full`}>
-                        {t.cta} →
-                      </button>
-                    </SignUpButton>
-                  </Show>
-                )}
-              </div>
-            </div>
-          </Reveal>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* -------------------------------------------------------------------- faq */
-
-function FAQ() {
-  const qs = [
-    [
-      "Does it work with my existing Hikvision / Dahua / CP Plus DVR?",
-      "Yes. Anything that speaks RTSP works. The edge agent handles per-vendor quirks and transcodes H.265 sources on the fly — no DVR firmware changes.",
-    ],
-    [
-      "What's the latency?",
-      "5–15 seconds over HLS. Push-ingest sessions can use WebRTC (WHIP in, WHEP out) for under one second. WebRTC for edge-agent ingest is on the roadmap.",
-    ],
-    [
-      "What does Streamo store?",
-      "Camera names and IDs, session metadata, and clips you explicitly keep — nothing else. Live video is never recorded unless a session sets record:true, and RTSP credentials never leave the edge machine.",
-    ],
-    [
-      "Can I avoid per-minute fees?",
-      "Yes. Point your project at a MediaMTX server you host — one dashboard setting, no code change. You trade the CDN, recordings, and signed URLs for flat cost; many monitoring workloads prefer that.",
-    ],
-    [
-      "How do I integrate it?",
-      "Plain REST with bearer keys. Create a session, put the returned URL in a <video> tag with hls.js. The dashboard's watch page and the open-source repo are working references.",
-    ],
-    [
-      "What happens when the network blips?",
-      "The edge agent supervises every stream and reconnects with backoff. If a viewer disappears, heartbeat timeout ends the session server-side; nothing runs — or bills — unattended.",
-    ],
-  ];
-  return (
-    <section id="faq" className="mx-auto w-full max-w-3xl px-6 pb-24">
-      <Reveal>
-        <SectionHead eyebrow="FAQ" title="Questions" />
-      </Reveal>
-      <Reveal delay={80}>
-        <div className="flex flex-col gap-3">
-          {qs.map(([q, a]) => (
-            <details
-              key={q}
-              className="group rounded-xl border border-white/8 bg-white/[0.02] px-5 py-4 transition-colors open:border-emerald-400/25 hover:border-white/20"
-            >
-              <summary className="flex cursor-pointer list-none items-baseline justify-between gap-6">
-                <span className="text-sm font-medium text-neutral-100">{q}</span>
-                <span className="font-mono text-neutral-600 transition-transform group-open:rotate-45">
-                  +
-                </span>
-              </summary>
-              <p className="mt-3 text-sm leading-relaxed text-neutral-400">{a}</p>
-            </details>
+    <section id="use-cases" className="border-y border-[#deded7] bg-[#efeee8] py-24 sm:py-28">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+        <Reveal>
+          <div className="grid gap-6 lg:grid-cols-[0.7fr_1.3fr] lg:items-end">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#48715d]">Built for the physical world</p>
+            <h2 className="font-display text-3xl font-semibold leading-[1.08] tracking-[-0.045em] text-[#15221c] sm:text-5xl">
+              One video layer, across devices and industries.
+            </h2>
+          </div>
+        </Reveal>
+        <div className="mt-14 grid border-t border-[#ced0c9] md:grid-cols-3">
+          {cases.map(([title, body], index) => (
+            <Reveal key={title} delay={index * 60}>
+              <article className={`py-8 md:min-h-[210px] md:px-8 ${index > 0 ? "border-t border-[#ced0c9] md:border-l md:border-t-0" : "md:pl-0"}`}>
+                <span className="font-mono text-[10px] text-[#7b847e]">0{index + 1}</span>
+                <h3 className="mt-8 font-display text-xl font-semibold tracking-[-0.025em] text-[#1d2b24]">{title}</h3>
+                <p className="mt-3 text-sm leading-6 text-[#68706c]">{body}</p>
+              </article>
+            </Reveal>
           ))}
         </div>
-      </Reveal>
+      </div>
     </section>
   );
 }
 
-/* ---------------------------------------------------------------- closing */
+function Pricing() {
+  const included = [
+    "No per-camera fee",
+    "Unlimited cameras on each edge",
+    "Clips billed by stored GB",
+    "Self-hosted media plane available",
+  ];
+  return (
+    <section id="pricing" className="bg-[#f8f7f3] py-24 sm:py-32">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+        <Reveal>
+          <div className="grid gap-10 rounded-[24px] border border-[#d4d6d0] bg-white/65 p-7 shadow-[0_20px_60px_rgba(33,48,40,0.06)] sm:p-10 lg:grid-cols-[0.9fr_1.1fr] lg:p-14">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#48715d]">Simple usage pricing</p>
+              <h2 className="mt-4 font-display text-3xl font-semibold tracking-[-0.045em] text-[#15221c] sm:text-4xl">Pay for video that moves.</h2>
+              <p className="mt-4 max-w-md text-sm leading-6 text-[#68706c]">An idle camera costs nothing. Start on the free tier, then pay for viewer minutes and clips as your usage grows.</p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Show when="signed-out">
+                  <SignUpButton mode="modal"><button className={primaryButton}>Start free <ArrowRight size={16} /></button></SignUpButton>
+                </Show>
+                <a href="mailto:hello@streamo.in" className={secondaryButton}>Talk to us</a>
+              </div>
+            </div>
+            <div className="grid gap-8 border-t border-[#d9dbd5] pt-8 sm:grid-cols-2 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
+              <div>
+                <p className="text-xs font-semibold text-[#6d756f]">Free</p>
+                <p className="mt-3 font-display text-4xl font-semibold tracking-[-0.04em] text-[#18251f]">$0</p>
+                <p className="mt-2 text-xs text-[#7c847f]">100 viewer-minutes / month</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-[#6d756f]">Then</p>
+                <p className="mt-3 font-display text-4xl font-semibold tracking-[-0.04em] text-[#18251f]">$0.005</p>
+                <p className="mt-2 text-xs text-[#7c847f]">per viewer-minute</p>
+              </div>
+              <ul className="grid gap-3 border-t border-[#e0e1dc] pt-6 text-sm text-[#59635d] sm:col-span-2 sm:grid-cols-2">
+                {included.map((item) => <li key={item} className="flex items-start gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[#347052]" />{item}</li>)}
+              </ul>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+function FAQ() {
+  const questions = [
+    ["Does it work with existing CCTV?", "Yes. Anything that exposes an RTSP feed can be registered. The edge agent transcodes sources such as H.265 into a browser-compatible stream when needed."],
+    ["How much latency should I expect?", "HLS is typically 5–15 seconds. Push-ingest sessions can use WHIP and WHEP for sub-second WebRTC playback. WebRTC from RTSP edge cameras is not shipped yet."],
+    ["What does Streamo store?", "Camera names and IDs, session metadata, and only the clips or recordings you explicitly keep. RTSP credentials remain on your edge machine."],
+    ["Can I run the media plane myself?", "Yes. A project can use self-hosted MediaMTX instead of Cloudflare Stream. You trade global CDN delivery, recordings, and signed URLs for flat infrastructure cost."],
+  ];
+  return (
+    <section className="bg-[#f8f7f3] pb-24 sm:pb-32">
+      <div className="mx-auto grid max-w-7xl gap-12 px-5 sm:px-8 lg:grid-cols-[0.65fr_1.35fr] lg:gap-24">
+        <Reveal><SectionIntro label="Questions" title="The practical details." /></Reveal>
+        <Reveal delay={70}>
+          <div className="border-t border-[#d4d6d0]">
+            {questions.map(([question, answer]) => (
+              <details key={question} className="group border-b border-[#d4d6d0] py-5">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-sm font-semibold text-[#233129]">
+                  {question}
+                  <span className="text-xl font-light text-[#77817b] transition-transform group-open:rotate-45">+</span>
+                </summary>
+                <p className="max-w-2xl pb-2 pt-4 text-sm leading-6 text-[#68706c]">{answer}</p>
+              </details>
+            ))}
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
 
 function Closing() {
   return (
-    <section className="relative overflow-hidden border-t border-white/5">
-      <div className="bg-grid pointer-events-none absolute inset-0 opacity-60" aria-hidden />
-      <div
-        className="pointer-events-none absolute -bottom-48 left-1/2 h-[420px] w-[760px] -translate-x-1/2 rounded-full bg-emerald-500/10 blur-[130px]"
-        aria-hidden
-      />
-      <div className="relative mx-auto w-full max-w-6xl px-6 py-28 text-center">
+    <section className="border-t border-[#2b3c33] bg-[#17231d] py-20 text-white sm:py-24">
+      <div className="mx-auto flex max-w-7xl flex-col justify-between gap-10 px-5 sm:px-8 lg:flex-row lg:items-center">
         <Reveal>
-          <div className="relative mx-auto max-w-2xl px-8 py-6">
-            <Brackets className="absolute inset-0 block" />
-            <h2 className="font-display text-3xl font-semibold leading-tight tracking-tight text-neutral-50 md:text-5xl">
-              A camera on your desk can be live on the internet in the next fifteen minutes.
-            </h2>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8bc1a6]">Start with one camera</p>
+            <h2 className="mt-4 max-w-3xl font-display text-3xl font-semibold leading-[1.08] tracking-[-0.045em] sm:text-5xl">From private RTSP feed to a secure viewer in minutes.</h2>
           </div>
-          <p className="mx-auto mt-6 max-w-md text-sm text-neutral-500">
-            Free tier, no card. The edge agent installs with one command.
-          </p>
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-            <Show when="signed-out">
-              <SignUpButton mode="modal">
-                <button className={btnPrimary}>Get an API key →</button>
-              </SignUpButton>
-            </Show>
-            <Show when="signed-in">
-              <Link href="/dashboard" className={btnPrimary}>
-                Open dashboard →
-              </Link>
-            </Show>
-            <Link href="/showcase" className={btnGhost}>
-              Watch a live camera
-            </Link>
+        </Reveal>
+        <Reveal delay={80}>
+          <div className="flex shrink-0 flex-wrap gap-3">
+            <Show when="signed-out"><SignUpButton mode="modal"><button className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#b9e0cc] px-5 text-sm font-semibold text-[#123022] transition-colors hover:bg-white">Get an API key <ArrowRight size={16} /></button></SignUpButton></Show>
+            <Show when="signed-in"><Link href="/dashboard" className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#b9e0cc] px-5 text-sm font-semibold text-[#123022]">Open dashboard <ArrowRight size={16} /></Link></Show>
+            <Link href="/download" className="inline-flex h-11 items-center rounded-lg border border-white/20 px-5 text-sm font-semibold text-white transition-colors hover:bg-white/10">Download the edge</Link>
           </div>
         </Reveal>
       </div>
@@ -882,35 +532,20 @@ function Closing() {
 
 function Footer() {
   return (
-    <footer className="mt-auto border-t border-white/5">
-      <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-6 py-8 text-sm text-neutral-500 md:flex-row md:items-center">
-        <span className="flex items-center gap-2.5">
-          <LensMark />
-          <span className="font-display font-semibold text-neutral-200">streamo</span>
-          <span className="font-mono text-xs text-neutral-600">camera intelligence</span>
-        </span>
-        <div className="flex items-center gap-6 text-[13px]">
-          <a href="#capabilities" className="transition-colors hover:text-neutral-100">
-            Capabilities
-          </a>
-          <a href="#stack" className="transition-colors hover:text-neutral-100">
-            Platform
-          </a>
-          <a href="#building" className="transition-colors hover:text-neutral-100">
-            What&apos;s next
-          </a>
-          <Link href="/showcase" className="transition-colors hover:text-neutral-100">
-            Demo
-          </Link>
-          <Link href="/download" className="transition-colors hover:text-neutral-100">
-            Download
-          </Link>
-          <a
-            href="https://github.com/VishweshMashru/Relay"
-            className="transition-colors hover:text-neutral-100"
-          >
-            GitHub
-          </a>
+    <footer className="border-t border-white/10 bg-[#111a15] text-white/55">
+      <div className="mx-auto flex max-w-7xl flex-col justify-between gap-8 px-5 py-9 sm:px-8 md:flex-row md:items-center">
+        <div>
+          <Brand inverse />
+          <p className="mt-3 text-xs text-white/35">Video infrastructure for physical devices.</p>
+        </div>
+        <div className="flex flex-wrap gap-x-7 gap-y-3 text-xs">
+          <a href="#product" className="hover:text-white">Product</a>
+          <a href="#security" className="hover:text-white">Security</a>
+          <a href="#pricing" className="hover:text-white">Pricing</a>
+          <Link href="/showcase" className="hover:text-white">Demo</Link>
+          <Link href="/download" className="hover:text-white">Download</Link>
+          <a href="https://github.com/VishweshMashru/Relay" className="hover:text-white">GitHub</a>
+          <a href="mailto:hello@streamo.in" className="hover:text-white">Contact</a>
         </div>
       </div>
     </footer>

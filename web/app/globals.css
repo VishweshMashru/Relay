@@ -26,22 +26,21 @@
   transform: none;
 }
 
-/* ------------------------------------------------- viewfinder ambience */
-
-/* Faint blueprint grid used behind the hero. */
-.bg-grid {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 44px 44px;
+html {
+  scroll-behavior: smooth;
 }
 
-/* Recording dot. */
-.rec {
-  animation: rec-blink 1.6s ease-in-out infinite;
+.streamo-landing {
+  font-feature-settings: "ss01" 1, "ss03" 1;
 }
-@keyframes rec-blink {
-  50% { opacity: 0.25; }
+
+/* Quiet, editorial hero ambience. The original blueprint grid made the page
+   read like a developer-tool template; this uses broad tonal fields instead. */
+.landing-wash {
+  background:
+    radial-gradient(circle at 76% 18%, rgba(117, 171, 142, 0.2), transparent 32%),
+    radial-gradient(circle at 9% 82%, rgba(217, 223, 212, 0.7), transparent 28%),
+    #f4f3ee;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -49,9 +48,6 @@
     opacity: 1;
     transform: none;
     transition: none;
-  }
-  .rec {
-    animation: none;
   }
 }
 

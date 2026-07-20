@@ -14,29 +14,38 @@ export default function Watch({ params }: { params: Promise<{ id: string }> }) {
   const [status, setStatus] = useState<"starting" | "ready" | "error">("starting");
   const [error, setError] = useState<string | null>(null);
 
-  const startSession = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/showcase/sessions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ camera_id: id }),
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`session ${res.status}: ${body || res.statusText}`);
-      }
-      const data = (await res.json()) as { id: string; viewer_url: string; viewer_token: string };
-      setSession(data);
-      setStatus("ready");
-    } catch (e) {
-      setError((e as Error).message);
-      setStatus("error");
-    }
-  }, [id]);
-
   useEffect(() => {
-    startSession();
-  }, [startSession]);
+    let cancelled = false;
+
+    async function startSession() {
+      try {
+        const res = await fetch(`/api/showcase/sessions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ camera_id: id }),
+        });
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`session ${res.status}: ${body || res.statusText}`);
+        }
+        const data = (await res.json()) as { id: string; viewer_url: string; viewer_token: string };
+        if (!cancelled) {
+          setSession(data);
+          setStatus("ready");
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError((e as Error).message);
+          setStatus("error");
+        }
+      }
+    }
+
+    void startSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const heartbeat = useCallback(async () => {
     if (!session) return;
